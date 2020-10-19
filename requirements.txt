@@ -1,0 +1,6 @@
+Cython==0.29.21
+nltk==3.5
+numpy==1.19.0
+problog==2.1.0.42
+pyDatalog==0.17.1
+PySDD==0.2.10
