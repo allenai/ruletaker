@@ -118,14 +118,14 @@ To get around this, run the following to ensure that PySDD is installed properly
 pip install -vvv --upgrade --force-reinstall --no-binary :all: --no-deps pysdd
 ```
 
-Once the required packages are installed, the rule generator can be run as follows-
+Once the required packages are installed, the theory generator can be run as follows-
 ```
-python rule_generator.py --grammar <grammar_cfg_file_path> --config-json <theory_config_json_file_path> --op-theory-english <theory_in_english_op_file_path> --op-theory-program <theory_as_a logic_program_op_file_path> --op-theory-logical-form <theory_in_generic_prefix_notation_op_file_path> --theorem-prover <problog|pydatalog>
+python theory_generator.py --grammar <grammar_cfg_file_path> --config-json <theory_config_json_file_path> --op-theory-english <theory_in_english_op_file_path> --op-theory-program <theory_as_a logic_program_op_file_path> --op-theory-logical-form <theory_in_generic_prefix_notation_op_file_path> --theorem-prover <problog|pydatalog>
 ```
 
 E.g.:
 ```
-python rule_generator.py --grammar grammars_and_config/grammars/ruletaker_grammar_theory1.txt --config-json grammars_and_config/config/ruletaker_theory_generator_config_theory1.json  --op-theory-english ruletaker_theory1_english.csv --op-theory-program ruletaker_theory1_problog_program.csv --op-theory-logical-form ruletaker_theory1_lf.csv --theorem-prover problog
+python theory_generator.py --grammar grammars_and_config/grammars/ruletaker_grammar_theory1.txt --config-json grammars_and_config/config/ruletaker_theory_generator_config_theory1.json  --op-theory-english ruletaker_theory1_english.csv --op-theory-program ruletaker_theory1_problog_program.csv --op-theory-logical-form ruletaker_theory1_lf.csv --theorem-prover problog
 ```
 
 Once this completes, you should see a message that looks like:
