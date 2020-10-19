@@ -1,0 +1,11 @@
+Statement -> Fact | Rule
+Fact -> Polarity '(' Attribute Entity ')' [0.3] | Polarity '(' Relation Entity  Entity ')' [0.7]
+VFact -> Polarity '(' Attribute VEntity ')' [0.3] | Polarity '(' Relation VEntity Entity ')' [0.7]
+VFacts -> '[' VFact ',' VFact ']' [0.5] | '[' VFact ']' [0.5]
+Rule -> VFacts '->' VFact [1.0]
+VEntity -> Entity [0.2] | Variable [0.8]
+Entity -> 'cat' | 'dog' | 'bald eagle' | 'rabbit' | 'mouse' | 'tiger' | 'lion' | 'bear' | 'squirrel' | 'cow'
+Variable -> 'X'
+Attribute -> 'red' | 'blue' | 'green' | 'kind' | 'nice' | 'big' | 'cold' | 'young' | 'round' | 'rough'
+Relation -> 'likes' | 'chases' | 'eats' | 'sees' | 'visits' | 'needs' 
+Polarity -> '+' [0.5] | '-' [0.5]
