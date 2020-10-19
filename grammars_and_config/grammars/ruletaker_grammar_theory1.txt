@@ -1,0 +1,9 @@
+Statement -> Fact | Rule
+Fact -> Polarity '(' Attribute Entity ')'
+Facts -> '[' Fact ',' Fact ']' [0.5] | '[' Fact ']' [0.5]
+Rule -> Facts '->' Fact [1.0]
+VEntity -> Entity [0.2] | Variable [0.8]
+Entity -> 'Anne' | 'Bob' | 'Charlie' | 'Dave' | 'Erin' | 'Fiona' | 'Gary' | 'Harry'
+Variable -> 'X'
+Attribute -> 'red' | 'blue' | 'green' | 'kind' | 'nice' | 'big' | 'cold' | 'young' | 'round' | 'rough' | 'white' | 'smart' | 'quiet' | 'furry' 
+Polarity -> '+' [1.0] | '-' [0.0]
