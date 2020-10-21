@@ -234,35 +234,8 @@ class Theory:
             new_facts.append(new_fact)
         self.facts.extend(new_facts)
 
-    def ground_variables_in_negated_rule_clauses(self):
-        """Preprocess theory to ground variables in rules with negated clauses in antecedent.
-        Again meant to make input theory friendly for Problog."""
-
-        def has_variable_argument(fact):
-            for argument in fact.arguments:
-                if argument in all_variables:
-                    return True
-            return False
-
-        def has_negated_antecedent_with_variable(rule):
-            found_negated_antecedent_with_variable = False
-            for fact in rule.lhs:
-                if fact.polarity != '+' and has_variable_argument(fact):
-                    found_negated_antecedent_with_variable = True
-                    break
-            return found_negated_antecedent_with_variable
-
-        modified_rules = []
-        for rule in self.rules:
-            if has_negated_antecedent_with_variable(rule):
-                grounded_rules = self.ground_rule(rule)
-                modified_rules.extend(grounded_rules)
-            else:
-                modified_rules.append(rule)
-        self.rules = modified_rules
-
     def ground_rule(self, rule):
-        """Grounds variables in a given rules. Used to preprocess theories to make them
+        """Helper that grounds variables in a given rule. Used to preprocess theories to make them
         Problog-friendly."""
         def ground_variable(rule, variable, constant):
             rule_copy = copy.deepcopy(rule)
@@ -294,6 +267,33 @@ class Theory:
                     new_rules.append(new_rule)
             rules = new_rules
         return rules
+
+    def ground_variables_in_negated_rule_clauses(self):
+        """Preprocess theory to ground variables in rules with negated clauses in antecedent.
+        Again meant to make input theory friendly for Problog."""
+
+        def has_variable_argument(fact):
+            for argument in fact.arguments:
+                if argument in all_variables:
+                    return True
+            return False
+
+        def has_negated_antecedent_with_variable(rule):
+            found_negated_antecedent_with_variable = False
+            for fact in rule.lhs:
+                if fact.polarity != '+' and has_variable_argument(fact):
+                    found_negated_antecedent_with_variable = True
+                    break
+            return found_negated_antecedent_with_variable
+
+        modified_rules = []
+        for rule in self.rules:
+            if has_negated_antecedent_with_variable(rule):
+                grounded_rules = self.ground_rule(rule)
+                modified_rules.extend(grounded_rules)
+            else:
+                modified_rules.append(rule)
+        self.rules = modified_rules
 
 
     def preprocess(self, theorem_prover):
