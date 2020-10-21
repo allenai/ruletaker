@@ -68,6 +68,17 @@ def parse_multiple_facts(multiple_facts_txt):
         facts.append(fact)    
     return facts
 
+def parse_rule(statement_txt):
+    potential_rule_parts = statement_txt.split('->', 1)
+    lhs_txt = potential_rule_parts[0].strip()
+    rhs_txt = potential_rule_parts[1].strip()
+    lhs = None
+    try:
+        lhs = parse_multiple_facts(lhs_txt)
+    except ValueError:
+        raise ValuError(f'Unable to parse statement {statement_txt} as a rule.')      
+    rhs = parse_fact(rhs_txt)
+    return Rule(lhs, rhs)
 
 
 def parse_statement(statement_txt):
@@ -77,15 +88,7 @@ def parse_statement(statement_txt):
     # single fact.
     potential_rule_parts = statement_txt.split('->', 1)
     if len(potential_rule_parts) == 2:
-        lhs_txt = potential_rule_parts[0].strip()
-        rhs_txt = potential_rule_parts[1].strip()
-        lhs = None
-        try:
-            lhs = parse_multiple_facts(lhs_txt)
-        except ValueError:
-            raise ValuError(f'Unable to parse statement {statement_txt} as a rule.')      
-        rhs = parse_fact(rhs_txt)
-        return Rule(lhs, rhs)
+        return parse_rule(statement_txt)
     else:
         return parse_fact(statement_txt)
         

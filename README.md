@@ -54,9 +54,27 @@ The theory generator needs to meaningfully associate the grammar nonterminals wi
         "num_statements_range": [1, 8]
       }
     ],
-    "theorem_prover": {
-      # Specifies the grammar nonterminals that map to predicates, variables and constants, respectively.
+    # Specifies the grammar nonterminals that map to predicates, variables and constants, respectively.
+    # If any of these is not applicable, it can be left out of the config.
+    "theorem_prover": {     
+      # Nonterminals that generate the facts in the theory.
+      # If the grammar conforms to expected format, these nonterminals should generate statements that have
+      # the format: <+|-> ( <predicate> <argument1> [<argument2> <argument3> ...] )
+      # where predicate maps to one of the predicate_nonterminals noted below, and
+      # arguments are one of the variable_nonterminals or constant_nonterminals noted below.
+      "fact_nonterminals": ["Fact"],
+
+      # Nonterminals that generate the rules in the theory.
+      # If the grammar conforms to expected format, these nonterminals should generate statements that have
+      # the format: [ <fact1> , <fact2>, <fact3>, ... ] -> <consequent_fact>
+      # where fact1, fact2, fact3 and consequent_fact have the expected format for fact_nonterminals
+      # as noted above.
+      "rule_nonterminals": ["Rule"],
+
+      # Nonterminals that map to predicates in the theory's facts.
       "predicate_nonterminals": ["Attribute", "Relation"],
+
+      # Nonterminals that map to arguments to the predicates (above). These are either constants or variables.
       "variable_nonterminals": ["Variable"],
       "constant_nonterminals": ["Entity"]
     } 

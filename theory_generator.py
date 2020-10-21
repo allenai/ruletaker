@@ -24,7 +24,7 @@ from pyDatalog import pyDatalog
 from pyDatalog.pyDatalog import load
 
 import utils
-from utils import parse_fact, parse_statement
+from utils import parse_fact, parse_rule
 
 class TheoremProverConfig:
     """Config for the theory generation, read from a json input config file.
@@ -42,6 +42,8 @@ class TheoremProverConfig:
                 }
             ],
             "theorem_prover": {
+                "fact_nonterminals": ["Fact"],
+                "rule_nonterminals": ["Rule"],
                 "predicate_nonterminals": ["Attribute", "Relation"],
                 "variable_nonterminals": ["Variable"],
                 "constant_nonterminals": ["Entity"]
@@ -97,6 +99,8 @@ class TheoremProverConfig:
         self.predicates = []
         self.variables = []
         self.constants = []
+        self.fact_nonterminals = []
+        self.rule_nonterminals = []
         self.predicate_nonterminals = []
         self.variable_nonterminals = []
         self.constant_nonterminals = []
@@ -213,7 +217,7 @@ def generate_random_example(
     generated_rules = set()
     generated_statements = set()
 
-    predicates_in_generated_statements = set()
+    predicates_in_rule_consequents = set()
     arguments_in_generated_statements = set()
 
     # Generate examples for every required type of statement (Start Symbol type)
@@ -222,38 +226,67 @@ def generate_random_example(
         num_statements_range = statement_type['num_statements_range']
         req_num_statements = random.randint(num_statements_range[0], num_statements_range[1])
         num_generated_statements = 0
-        max_unique_generation_attempts = 10
-        num_unique_generation_attempts = 0
+        max_generation_attempts = 20
+        num_generation_attempts = 0
         while num_generated_statements < req_num_statements:
             generated_statement = generate_random_statement(grammar, start_symbol, theorem_prover_config)   
             if generated_statement in generated_statements:
-                if num_unique_generation_attempts == max_unique_generation_attempts:
+                if num_generation_attempts == max_generation_attempts:
                     break
-                num_unique_generation_attempts += 1
+                num_generation_attempts += 1
             else:
-                num_unique_generation_attempts = 0
-                generated_statement_parsed = parse_statement(generated_statement)
-                if isinstance(generated_statement_parsed, Fact):
-                    generated_facts.add(generated_statement_parsed)
-                    predicates_in_generated_statements.add(generated_statement_parsed.predicate)
-                    arguments_in_generated_statements.update(generated_statement_parsed.arguments)
-                else:
-                    generated_rules.add(generated_statement_parsed)
-                    for f in generated_statement_parsed.lhs:
-                        predicates_in_generated_statements.add(f.predicate)
-                        arguments_in_generated_statements.update(f.arguments)
-                    predicates_in_generated_statements.add(generated_statement_parsed.rhs.predicate)
-                    arguments_in_generated_statements.update(generated_statement_parsed.rhs.arguments)    
-                                        
+                if start_symbol in theorem_prover_config.rule_nonterminals:
+                    # If the current start symbol for generation is supposed to be a rule,
+                    # parse the generated statement as a rule.
+                    generated_rule = parse_rule(generated_statement)
 
-                generated_statements.add(generated_statement)
-                num_generated_statements += 1
+                    # Constrain rule such that:
+                    #   All non-first entities appear earlier in the rule.
+                    # This means that if the randomly generated rule does NOT conform to
+                    # this requirement, then retry. If not, it is a valid rule, so update
+                    # the set of generated statements by adding the rule.
+                    rule_constraint_statisfied = True
+                    first_entity = generated_rule.lhs[0].arguments[0]
+                    first_fact_remaining_arguments = generated_rule.lhs[0].arguments[1:]                   
+                    remaining_arguments = []
+                    for fact in generated_rule.lhs[1:]:
+                        remaining_arguments.extend(fact.arguments)
+                    remaining_arguments.extend(generated_rule.rhs.arguments)
+                    used_entities = set()
+                    used_entities.add(first_entity)
+                    for entity in remaining_arguments:
+                        if entity not in used_entities:
+                            rule_constraint_statisfied = False
+                            break
+                        else:
+                            used_entities.add(entity)
+
+                    if rule_constraint_statisfied:
+                        generated_rules.add(generated_rule)
+                        for f in generated_rule.lhs:
+                            arguments_in_generated_statements.update(f.arguments)
+                        predicates_in_rule_consequents.add(generated_rule.rhs.predicate)
+                        arguments_in_generated_statements.update(generated_rule.rhs.arguments) 
+                        generated_statements.add(generated_statement)
+                        num_generated_statements += 1
+                        num_generation_attempts = 0  
+
+                elif start_symbol in theorem_prover_config.fact_nonterminals:
+                    # If the current start symbol for generation is supposed to be a fact,
+                    # parse the generated statement as a fact.
+                    generated_fact = parse_fact(generated_statement)
+                    generated_facts.add(generated_fact)
+                    arguments_in_generated_statements.update(generated_fact.arguments)
+                    generated_statements.add(generated_statement)
+                    num_generated_statements += 1
+                    num_generation_attempts = 0
    
     theory = Theory(list(generated_facts), list(generated_rules), list(generated_statements))
 
     # Constrain the generation of the assertion so that:
     # 1. A statement in the theory is not just repeated as an assertion as is.
-    # 2. The assertion is valid only if it contains a predicate and arguments that appear somewhere in the theory.
+    # 2. The assertion is valid only if it contains arguments that appear somewhere in the theory and
+    #    a predicate that appears on the RHS of some rule.
     assertion = None
     max_valid_assertion_generation_attempts = 20
     num_attempts = 0
@@ -262,7 +295,7 @@ def generate_random_example(
         assertion_statement = generate_random_statement(grammar, assertion_start_symbol, theorem_prover_config)
         assertion = parse_fact(assertion_statement)
         if assertion_statement not in generated_statements and \
-            assertion.predicate in predicates_in_generated_statements and \
+            assertion.predicate in predicates_in_rule_consequents and \
                 len(set(assertion.arguments).intersection(arguments_in_generated_statements)) > 0:
                 generated_valid_assertion = True
         num_attempts += 1        
