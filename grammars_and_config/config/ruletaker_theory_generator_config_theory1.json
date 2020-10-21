@@ -10,6 +10,8 @@
       }
     ],
     "theorem_prover": {
+      "fact_nonterminals": ["Fact"],
+      "rule_nonterminals": ["Rule"],
       "predicate_nonterminals": ["Attribute"],
       "variable_nonterminals": ["Variable"],
       "constant_nonterminals": ["Entity"]
