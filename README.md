@@ -1,8 +1,12 @@
 # ruletaker
 
-This repo contains tools and utilities to generate datasets of theories and assertions meant to test the logical reasoning capabilities of a model. For details see the paper [Transformers as Soft Reasoners over Language](https://arxiv.org/abs/2002.05867).
+This repo contains tools and utilities to:
+1. Generate datasets of theories and assertions meant to test the logical reasoning capabilities of a model. For details see the paper [Transformers as Soft Reasoners over Language](https://arxiv.org/abs/2002.05867).
+2. Run existing theories through a theorem proving engine to obtain labels.
 
 ## Theory Generator
+
+We provide `theory_generator.py` to generate a dataset of theories and assertions. The inputs and outputs to this tool and a description of how to use it is described in this section.
 
 ### Inputs
 
@@ -167,6 +171,63 @@ Generated 1000 examples.
   No. with True label: 432
   No. with False label: 568
 ```
-  
+
+## Running Theorem Prover on existing theories
+
+We provide `get_theorem_prover_labels.py` to run existing theories and assertions through a theorem proving engine to obtain labels. Currently the supported input format is the the jsonl format used in [RuleTaker](https://arxiv.org/abs/2002.05867). 
+
+### Input
+
+Sample input format. This only includes fields that are relevant to the tool. There may be other fields.
+
+```
+```
+
+### Output
+
+The output produced is also a jsonl file with the same format as the input above, except with an additional Boolean field called '<theorem_prover>_label', for e.g., `problog_label`.
+
+### Running the theorem prover
+
+To run the theorem prover on an input theories dataset, first create a python environment with the necessary dependencies-
+
+```
+pip install -r requirements.txt
+```
+
+Then use the following command line to run `get_theorem_prover_labels.py`. Currently we are using Problog as the underlying theorem proving engine and that is the only supported engine.
+
+```
+python get_theorem_prover_labels.py \
+  --ruletaker-dataset-jsonl <ruletaker-data.jsonl>
+  --theorem-prover problog
+  --theorem-prover-op-jsonl <ruletake-data-with-problog-labels>.jsonl
+  [--report-metrics]
+```
+
+Note that `--report-metrics` is an optional flag to get accuracy and timing related metrics at the end of the run. If the flag is specified, you will see metrics reported as follows:
+
+```
+Total no. of examples: 150
+  No. true: 75
+    No. correct: 45
+    No. of exceptions: 22
+        No. correct with exceptions: 12
+    No. incorrect without exception: 20
+  No. false: 75
+    No. correct: 46
+    No. of exceptions: 25
+        No. correct with exceptions: 15
+    No. incorrect without exception: 19
+Total no. correct: 91
+Total no. with exceptions: 47
+Accuracy: 60.666666666666664
+
+Failure Breakdown by Exception:
+    problog.engine.NonGroundProbabilisticClause: 20
+
+Average theorem proving time per example: 0.022206666666666666 secs
+```
+
 
 

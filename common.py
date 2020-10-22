@@ -4,6 +4,13 @@ import random
 
 variables = ['X']
 
+# In the original RuleTaker dataset, variables were represented using the following NL.
+# These are used to check if an argument is a variable when we are loading/processing
+# existing RuleTaker theories.
+variables_ruletaker = ['someone', 'something']
+
+all_variables = variables + variables_ruletaker
+
 class Fact:
     """Class to represent a simple fact in a theory. It basically consists of a predicate
     with its arguments, a polarity (positive/negaitve) for it, along with an associated
@@ -19,22 +26,7 @@ class Fact:
 
     def __repr__(self):
         return f'({self.polarity} {self.predicate}({", ".join(self.arguments)}))'
- 
-    #def formatted_arguments(self):
-    #    """Format a predicate argument. This essentially means, if an argument is a constant
-    #    (terminal) keep it as is. If it represents a variable, e.g. "something", replace it
-    #    with the right representation for a variable in logical form. Here we use a variable from
-    #    the collection 'variables' defined at the top."""
-    #    arguments_mod = []
-    #    for arg in self.arguments:
-    #        arg_mod = arg
-    #        if arg not in variables:
-    #            arg_mod = variables[0]
-    #        else:
-    #            arg_mod = arg.lower()
-    #        arguments_mod.append(arg_mod)
-    #    return arguments_mod    
-
+    
     def logical_form(self, theorem_prover, standalone=True):
         """Produce a logical form representation of the fact in specified theorem prover format."""
         lf = ''
@@ -70,7 +62,7 @@ class Fact:
             # A constant is in lowercase with open and close single quotes. The quotes need to be removed.
             # A variable appears as an uppercase letter, one of the letters in the variables collection
             # define above, and in this case we return the letter as is.
-            return arg.lstrip("'").rstrip("'")
+            return arg.lstrip("'").rstrip("'").replace("_", " ")
 
         fact_nl = ""
         if len(self.arguments) == 1:
@@ -199,7 +191,118 @@ class Theory:
         fact_nls = [f.nl() for f in self.facts]
         rule_nls = [r.nl() for r in self.rules]
         nl = ' '.join(fact_nls + rule_nls)
-        return nl        
+        return nl
+
+    def handle_unknown_clauses(self):
+        """Preprocess theory to avoid UnknownClause errors arising from rule antecedants containing
+        lauses (Facts) that are not defined in the theory (a problem that arises with Problog).
+        This is done by adding dummy facts for the missing clauses."""
+
+        def create_fact(predicate, arguments_in_theory, num_arguments, polarity):
+            constants = arguments_in_theory - set(all_variables)
+            args_to_choose_from = set(constants)
+            num_missing_constants = num_arguments - len(constants)
+            if num_missing_constants > 0 :
+                args_to_choose_from.add(random.sample(variables, num_missing_constants))
+            arguments = random.sample(args_to_choose_from, num_arguments)
+            fact = Fact('+', predicate, arguments, 0.0)
+            return fact
+
+        predicates_in_rule_antecedants = dict()
+        predicates_in_rule_consequents = set()
+        predicates_in_facts = set()
+        arguments_in_theory = set()
+        for fact in self.facts:
+            if fact.polarity == '+':
+                predicates_in_facts.add(fact.predicate)
+            for arg in fact.arguments:
+                arguments_in_theory.add(arg)
+        for rule in self.rules:
+            if rule.rhs.polarity == '+':
+                predicates_in_rule_consequents.add(rule.rhs.predicate)
+
+        new_facts = []
+        for rule in self.rules:
+            for lhs_fact in rule.lhs:
+                predicates_in_rule_antecedants[lhs_fact.predicate] = (lhs_fact.polarity, len(lhs_fact.arguments))
+        rule_antecedant_predicates_not_in_facts = predicates_in_rule_antecedants.keys() - \
+            (predicates_in_facts.union(predicates_in_rule_consequents))
+        for rule_antecedant_predicate in rule_antecedant_predicates_not_in_facts:
+            polarity = predicates_in_rule_antecedants[rule_antecedant_predicate][0]
+            num_args = predicates_in_rule_antecedants[rule_antecedant_predicate][1]
+            new_fact = create_fact(rule_antecedant_predicate, arguments_in_theory, num_args, polarity)
+            new_facts.append(new_fact)
+        self.facts.extend(new_facts)
+
+    def ground_rule(self, rule):
+        """Helper that grounds variables in a given rule. Used to preprocess theories to make them
+        Problog-friendly."""
+        def ground_variable(rule, variable, constant):
+            rule_copy = copy.deepcopy(rule)
+            for fact in rule_copy.lhs:
+                for i in range(len(fact.arguments)):
+                    if fact.arguments[i] == variable:
+                        fact.arguments[i] = constant
+
+            for i in range(len(rule_copy.rhs.arguments)):
+                if rule_copy.rhs.arguments[i] == variable:
+                    rule_copy.rhs.arguments[i] = constant
+            return rule_copy
+
+        constants_in_theory = self.constants()
+        variables = set()
+        for fact in rule.lhs:
+            for argument in fact.arguments:
+                if argument in all_variables:
+                    variables.add(argument)
+        for argument in rule.rhs.arguments:
+            if argument in all_variables:
+                variables.add(argument)
+        rules = [rule]
+        new_rules = []
+        for variable in variables:
+            for rule in rules:
+                for constant in constants_in_theory:
+                    new_rule = ground_variable(rule, variable, constant)
+                    new_rules.append(new_rule)
+            rules = new_rules
+        return rules
+
+    def ground_variables_in_negated_rule_clauses(self):
+        """Preprocess theory to ground variables in rules with negated clauses in antecedent.
+        Again meant to make input theory friendly for Problog."""
+
+        def has_variable_argument(fact):
+            for argument in fact.arguments:
+                if argument in all_variables:
+                    return True
+            return False
+
+        def has_negated_antecedent_with_variable(rule):
+            found_negated_antecedent_with_variable = False
+            for fact in rule.lhs:
+                if fact.polarity != '+' and has_variable_argument(fact):
+                    found_negated_antecedent_with_variable = True
+                    break
+            return found_negated_antecedent_with_variable
+
+        modified_rules = []
+        for rule in self.rules:
+            if has_negated_antecedent_with_variable(rule):
+                grounded_rules = self.ground_rule(rule)
+                modified_rules.extend(grounded_rules)
+            else:
+                modified_rules.append(rule)
+        self.rules = modified_rules
+
+
+    def preprocess(self, theorem_prover):
+        """Preprocess theory to make it friendly to the theorem prover being used. Certain
+        features of a theory may cause the engine to throw exceptions. Currently, this happens
+        under several conditions, with Problog."""
+        if theorem_prover == 'problog':
+            self.handle_unknown_clauses()
+            self.ground_variables_in_negated_rule_clauses()    
 
 
 class TheoryAssertionInstance:
