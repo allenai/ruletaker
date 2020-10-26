@@ -204,7 +204,7 @@ class Theory:
             num_missing_constants = num_arguments - len(constants)
 
             if num_missing_constants > 0:
-                    sampled_vars = random.sample(variables, num_missing_constants)
+                sampled_vars = random.sample(variables, num_missing_constants)
                 args_to_choose_from.update(set(sampled_vars))
 
             arguments = random.sample(args_to_choose_from, num_arguments)
