@@ -327,7 +327,7 @@ def main():
     """
     parser = argparse.ArgumentParser(description='Tool to run theories through a theorem prover.')
     parser.add_argument('--ruletaker-dataset-jsonl', required=True, help='Jsonl file containing train or dev set theory-assertion instances with labels in RuleTaker format')
-    parser.add_argument('--theorem-prover', required=True, choices=['problog'], help='Json format config file with parameters to generate theory')
+    parser.add_argument('--theorem-prover', default='problog', help='Thorem proving engine to use. Only supported one right now is problog.')
     parser.add_argument('--theorem-prover-op-jsonl', required=True, help='Output jsonl file containing the theorem prover\'s output for each theory-assertion instance input')
     parser.add_argument('--report-metrics', action='store_true', help='Flag that will cause metrics (accuracy against gold labels) to be tracked and reported')
     args = parser.parse_args()
