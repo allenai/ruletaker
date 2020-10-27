@@ -38,15 +38,6 @@ class Fact:
             lf += f'{self.predicate}({", ".join(arguments)})'
             if standalone:
                 lf = f'{prob}{lf}.'
-        elif theorem_prover.lower() == 'pydatalog':
-            args_txt = ', '.join(arguments)
-            lf = None
-            if self.polarity == '+':
-                lf = f'{self.predicate}({args_txt})'
-            else:
-                lf = f'~{self.predicate}({args_txt})'
-            if standalone:
-                lf = f'+{lf}' 
         return lf
 
     def nl(self, standalone=True):
@@ -111,13 +102,6 @@ class Rule:
             antecedant_lf = ', '.join([lhs_fact.logical_form(theorem_prover, False) for lhs_fact in self.lhs])
             consequent_lf = self.rhs.logical_form(theorem_prover, False)
             lf = f'{prob}{consequent_lf} :- {antecedant_lf}.'
-        elif theorem_prover.lower() == 'pydatalog':
-            fact_txts = []
-            for fact in self.lhs:
-                fact_txts.append(fact.logical_form(theorem_prover, False))
-            antecedant = ' & '.join(fact_txts)
-            consequent = self.rhs.logical_form(theorem_prover, False) 
-            lf = f'{consequent} <= {antecedant}'
         return lf
 
     def nl(self):
@@ -179,11 +163,6 @@ class Theory:
         """The program along with assertion in theorem proving engine's expected format."""
         if theorem_prover == 'problog':
             return self.program(theorem_prover, assertion)
-        elif theorem_prover == 'pydatalog':
-            program = self.program(theorem_prover)
-            assertion_lf = assertion.logical_form(theorem_prover)
-            program += f'\nask({assertion_lf})'
-            return program 
         else:
             return self.program(theorem_prover, assertion)
 

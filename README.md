@@ -6,7 +6,9 @@ This repo contains tools and utilities to:
 
 ## Theory Generator
 
-We provide `theory_generator.py` to generate a dataset of theories and assertions. The inputs and outputs to this tool and a description of how to use it is described in this section.
+We provide `theory_generator.py` to generate a dataset of theories and assertions. This helps generate a dataset with gold labels derived by running each theory through a theorem proving engine. The only supported engine currently is [Problog](https://problog.readthedocs.io/en/latest/). Anyone who wishes to use a different theorem prover needs to make appropriate code changes and plug the new engine as a choice to the `theorem_prover` command line argument which currently defualt to `problog`.
+
+The inputs and outputs to this tool and a description of how to use it is described in this section.
 
 ### Inputs
 
@@ -119,9 +121,87 @@ File format:
 Sample output:
 >\+ ( blue X ) -> + ( red X ) + ( blue 'cat' ),(+ blue('cat')),True
 
-### Running the theory generator
 
-To run the theory generator, first create a python environment with the necessary dependencies-
+## Label Generator for existing theories
+
+We provide `theory_label_generator.py` to run existing theories and assertions through a theorem proving engine to obtain labels. Currently the supported input format is the the jsonl format used in [RuleTaker](https://arxiv.org/abs/2002.05867). 
+
+### Input
+
+Sample input format. This only includes fields that are relevant to the tool. There may be other fields.
+
+```
+{ "id": "AttNoneg-D3-319", ...
+         "triples":{
+            "triple1": {
+                "text":"Bob is cold.",
+                "representation":"(\"Bob\" \"is\" \"cold\" \"+\")"
+            },
+            "triple2": {
+                "text":"Erin is nice.",
+                "representation":"(\"Erin\" \"is\" \"nice\" \"+\")"
+            },
+            "triple3":{
+                "text":"Gary is nice.",
+                "representation":"(\"Gary\" \"is\" \"nice\" \"+\")"
+            },
+            "triple4":{
+                "text":"Harry is blue.",
+                "representation":"(\"Harry\" \"is\" \"blue\" \"+\")"
+            }
+        },
+        "rules":{
+            "rule1":{
+                "text":"Blue people are furry.",
+                "representation":"(((\"someone\" \"is\" \"blue\" \"+\")) -> (\"someone\" \"is\" \"furry\" \"+\"))"
+            },
+            "rule2":{
+                "text":"Nice people are furry.",
+                "representation":"(((\"someone\" \"is\" \"nice\" \"+\")) -> (\"someone\" \"is\" \"furry\" \"+\"))"
+            },
+            "rule3":{
+                "text":"Blue, big people are nice.",
+                "representation":"(((\"someone\" \"is\" \"blue\" \"+\") (\"someone\" \"is\" \"big\" \"+\"))
+                                        -> (\"someone\" \"is\" \"nice\" \"+\"))"
+                },
+            "rule4":{
+                "text":"If someone is cold then they are quiet.",
+                "representation":"(((\"someone\" \"is\" \"cold\" \"+\")) 
+                                        -> (\"someone\" \"is\" \"quiet\" \"+\"))"},
+            }
+        },
+        "questions":{
+            "Q1":{
+                "question":"Erin is nice.",
+                "answer":true,
+                ...
+                "representation":"(\"Erin\" \"is\" \"nice\" \"+\")"
+            },
+            "Q2":{
+                "question":"Gary is not nice.",
+                "answer":false,
+                ...
+                "representation":"(\"Gary\" \"is\" \"nice\" \"-\")"
+            },
+            "Q3":{
+                "question":"Gary is furry.",
+                "answer":true,
+                "representation":"(\"Gary\" \"is\" \"furry\" \"+\")"
+            }
+        }
+    }
+```
+
+### Output
+
+The output produced is also a jsonl file with the same format as the input above, except with an additional Boolean field called '<theorem_prover>_label', for e.g., `problog_label`.
+
+
+## Running the tools
+
+### Preparing the Python environment
+
+To run any of the tools in the repo, first create a python environment with the necessary dependencies-
 
 ```
 pip install -r requirements.txt
@@ -143,15 +223,16 @@ To get around this, run the following to ensure that PySDD is installed properly
 pip install -vvv --upgrade --force-reinstall --no-binary :all: --no-deps pysdd
 ```
 
-Once the required packages are installed, the theory generator can be run as follows-
+### Running the theory generator
+
+Once you have prepared the Python environment as described, you can run the theory generator as follows-
 ```
 python theory_generator.py \
   --grammar <grammar_cfg_file_path> \
   --config-json <theory_config_json_file_path> \
   --op-theory-english <theory_in_english_op_file_path> \
   --op-theory-program <theory_as_a logic_program_op_file_path> \
-  --op-theory-logical-form <theory_in_generic_prefix_notation_op_file_path> \
-  --theorem-prover <problog|pydatalog>
+  --op-theory-logical-form <theory_in_generic_prefix_notation_op_file_path>
 ```
 
 E.g.:
@@ -161,8 +242,7 @@ python theory_generator.py \
   --config-json grammars_and_config/config/ruletaker_theory_generator_config_theory1.json  \
   --op-theory-english ruletaker_theory1_english.csv \
   --op-theory-program ruletaker_theory1_problog_program.csv \
-  --op-theory-logical-form ruletaker_theory1_lf.csv \
-  --theorem-prover problog
+  --op-theory-logical-form ruletaker_theory1_lf.csv
 ```
 
 Once this completes, you should see a message that looks like:
@@ -172,35 +252,15 @@ Generated 1000 examples.
   No. with False label: 568
 ```
 
-## Running Theorem Prover on existing theories
+### Running the label generator on existing theories
 
-We provide `get_theorem_prover_labels.py` to run existing theories and assertions through a theorem proving engine to obtain labels. Currently the supported input format is the the jsonl format used in [RuleTaker](https://arxiv.org/abs/2002.05867). 
+After preparing the Python environment as described earlier, use the following command line to run `theory_label_generator.py`.
 
-### Input
-
-Sample input format. This only includes fields that are relevant to the tool. There may be other fields.
+Currently we are using Problog as the underlying theorem proving engine and that is the only supported engine.
 
 ```
-```
-
-### Output
-
-The output produced is also a jsonl file with the same format as the input above, except with an additional Boolean field called '<theorem_prover>_label', for e.g., `problog_label`.
-
-### Running the theorem prover
-
-To run the theorem prover on an input theories dataset, first create a python environment with the necessary dependencies-
-
-```
-pip install -r requirements.txt
-```
-
-Then use the following command line to run `get_theorem_prover_labels.py`. Currently we are using Problog as the underlying theorem proving engine and that is the only supported engine.
-
-```
-python get_theorem_prover_labels.py \
+python theory_label_generator.py \
   --ruletaker-dataset-jsonl <ruletaker-data.jsonl>
-  --theorem-prover problog
   --theorem-prover-op-jsonl <ruletake-data-with-problog-labels>.jsonl
   [--report-metrics]
 ```

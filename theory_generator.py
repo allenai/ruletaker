@@ -18,11 +18,6 @@ from problog.engine_stack import NegativeCycle
 from problog.formula import LogicFormula, LogicDAG
 from problog.sdd_formula import SDD 
 
-
-import pyDatalog
-from pyDatalog import pyDatalog
-from pyDatalog.pyDatalog import load
-
 import utils
 from utils import parse_fact, parse_rule
 
@@ -120,17 +115,6 @@ def choose_production(grammar, nonterminal):
     return chosen_production
 
 
-def initialize_theorem_prover(theorem_prover_config, theorem_prover):
-    """Intialize the theorem proving engine. Depending on the chosen theorem prover, nothing may
-    need to be done."""
-    # Initializes pyDatalog by creating necessary terms for predicates and variables.
-    if theorem_prover == 'pydatalog':
-        pyDatalog.clear()
-        # Create theory terms in pyDatalog
-        terms_arg = f'\'{", ".join(theorem_prover_config.predicates + theorem_prover_config.variables)}\''
-        pyDatalog.create_terms(terms_arg)
-
-
 def generate_random_statement(grammar, nonterminal, theorem_prover_config):
     """Generate a random statement from the given nonterminal LHS in the grammar."""
     chosen_production = choose_production(grammar, nonterminal)
@@ -151,27 +135,6 @@ def generate_random_statement(grammar, nonterminal, theorem_prover_config):
             sentence += ' '
         sentence += item_generated_statement
     return sentence
-
-
-def run_theory_in_pydatalog(theory, assertion):
-    """Run the given theory and assertion through PyDatalog engine to obtain a True/False label.
-    If an exception is encountered, return None so that this example will not be part of output."""
-    theorem_prover = 'pydatalog'
-    logical_forms = []
-    for fact_or_rule in theory.facts + theory.rules:
-        if not isinstance(fact_or_rule, Fact) and not isinstance(fact_or_rule, Rule):
-            raise ValueError(f'Encountered an object that is not a Fact or a Rule!')
-        logical_forms.append(fact_or_rule.logical_form(theorem_prover))
-    assertion_logical_form = assertion.logical_form(theorem_prover)
-    pydatalog_statements_txt = '\n'.join(logical_forms)
-    pyDatalog.clear()
-    pyDatalog.load(pydatalog_statements_txt)
-    try:
-        result = pyDatalog.ask(assertion_logical_form)
-        label = len(result.answers) > 0
-        return label
-    except AttributeError:
-        return False
 
 
 def run_theory_in_problog(theory, assertion):
@@ -197,9 +160,7 @@ def get_truth_label(theory, assertion, theorem_prover_config, theorem_prover):
     """Get a truth label for a given theory and assertion by running it through
     specified theorem prover."""
     label = None
-    if theorem_prover.lower() == 'pydatalog':
-        label = run_theory_in_pydatalog(theory, assertion)
-    elif theorem_prover.lower() == 'problog':
+    if theorem_prover.lower() == 'problog':
         label = run_theory_in_problog(theory, assertion)
     return label
 
@@ -324,7 +285,6 @@ def generate_theory(grammar, config, theory_lf_file, theory_program_file, theory
 
     # Get Theorem Prover Config and initialize Theorem Prover 
     theorem_prover_config = TheoremProverConfig(grammar, **config["theory"]["theorem_prover"])
-    initialize_theorem_prover(theorem_prover_config, theorem_prover)
 
     theory_logical_forms_writer = None
     theory_program_writer = None
@@ -432,7 +392,7 @@ def main():
     parser.add_argument('--op-theory-logical-form', help='Csv file with the predicates generated from the grammar. Format: <theory-predicates>, <predicate-to-prove>, <label>')
     parser.add_argument('--op-theory-program', help='Csv file with the logic program for each generated theory in the format appropriate for the chosen theorem prover. Format: <program>, <label>')
     parser.add_argument('--op-theory-english', help='Csv file contaning theories in English, to use for training. Format: <theory-in-english-sentences>, <assertion>, <label: True/False>')
-    parser.add_argument('--theorem-prover', required=True, choices=['problog', 'pydatalog'], help='Json format config file with parameters to generate theory')
+    parser.add_argument('--theorem-prover', default='problog', help='Thorem proving engine to use. Only supported one right now is problog.')
     args = parser.parse_args()
  
     with open(args.grammar, 'r') as grammar_file, \
