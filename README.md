@@ -210,24 +210,32 @@ Note that `--report-metrics` is an optional flag to get accuracy and timing rela
 ```
 Total no. of examples: 150
   No. true: 75
-    No. correct: 45
-    No. of exceptions: 22
-        No. correct with exceptions: 12
-    No. incorrect without exception: 20
+    No. correct: 73
+    No. of exceptions: 6
+        No. correct with exceptions: 4
+    No. incorrect without exception: 0
   No. false: 75
-    No. correct: 46
-    No. of exceptions: 25
-        No. correct with exceptions: 15
-    No. incorrect without exception: 19
-Total no. correct: 91
-Total no. with exceptions: 47
-Accuracy: 60.666666666666664
+    No. correct: 72
+    No. of exceptions: 7
+        No. correct with exceptions: 4
+    No. incorrect without exception: 0
+Total no. correct: 145
+Total no. with exceptions: 13
+Accuracy: 96.66666666666667
 
 Failure Breakdown by Exception:
-    problog.engine.NonGroundProbabilisticClause: 20
+    problog.engine_stack.NegativeCycle: 5
 
-Average theorem proving time per example: 0.022206666666666666 secs
+Average theorem proving time per example: 0.025506666666666667 secs
 ```
+
+
+# Platform
+
+This code has been tested and runs on Python 3.7.7 on the following platforms-
+Mac OS 10.13, 10.14
+
+
 
 
 
