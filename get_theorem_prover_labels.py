@@ -18,6 +18,8 @@ import time
 
 current_milli_time = lambda: int(round(time.time() * 1000))
 
+ruletaker_variable_nl_to_variable_format = { 'someone' : 'X', 'something' : 'Y' }
+
 class Metrics:
     """ Class to store accuracy and timing related metrics when running an entire theories dataset
     through a theorem proving engine."""
@@ -86,7 +88,8 @@ class Metrics:
             print(f'Total no. of examples: {self.num_examples}')
             if self.num_no_gold_label > 0:
                 print(f'Found {self.num_no_gold_label} examples without a gold label')
-            else:    
+            else:
+                total_no_of_exceptions = self.num_true_with_exception + self.num_false_with_exception
                 print(f'  No. true: {self.num_true}')
                 print(f'    No. correct: {self.num_correct_true}')
                 print(f'    No. of exceptions: {self.num_true_with_exception}')
@@ -98,12 +101,25 @@ class Metrics:
                 print(f'        No. correct with exceptions: {self.num_correct_false_with_exception}')
                 print(f'    No. incorrect without exception: {self.num_incorrect_false_no_exception}')
                 print(f'Total no. correct: {self.num_correct}')
-                print(f'Total no. with exceptions: {self.num_true_with_exception + self.num_false_with_exception}')
+                print(f'Total no. with exceptions: {total_no_of_exceptions}')
                 print(f'Accuracy: {(self.num_correct * 100.0) / self.num_examples}')
-                print('\nFailure Breakdown by Exception:')
-                for exception in self.exception_num_failures:
-                    print(f'    {exception}: {self.exception_num_failures[exception]}')
+                if total_no_of_exceptions > 0:
+                    print('\nFailure Breakdown by Exception:')
+                    for exception in self.exception_num_failures:
+                        print(f'    {exception}: {self.exception_num_failures[exception]}')
             print(f'\nAverage theorem proving time per example: {avg_elapsed_secs} secs\n\n')    
+
+
+def format_argument(arg_as_str):
+    """Function that takes a string representing a predicate argument and formats it appropriately
+    depending on whether it is a constatn or a variable.
+    """
+    arg_as_str = arg_as_str.lower()
+    if arg_as_str in ruletaker_variable_nl_to_variable_format.keys():
+        # If it's in the mapping, it is a variable, so return an appropriately formatted variable.
+        return ruletaker_variable_nl_to_variable_format[arg_as_str]
+    # If it's not in the mapping, it is a constant, so return a lower-cased string.    
+    return arg_as_str
 
 
 def parse_triple_representation(triple_rep):
@@ -124,9 +140,9 @@ def parse_triple_representation(triple_rep):
         triple_parts.append(triple_part)
          
     if len(triple_parts) == 4:
-        arg1 = triple_parts[0]
+        arg1 = format_argument(triple_parts[0])
         predicate = triple_parts[1]
-        arg2 = triple_parts[2]
+        arg2 = format_argument(triple_parts[2])
         polarity = triple_parts[3]
         if predicate == 'is':
             predicate = f'{predicate}_{arg2}'
