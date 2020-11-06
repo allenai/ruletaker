@@ -316,7 +316,7 @@ def generate_theory(grammar, config, theory_lf_file, theory_program_file, theory
             else:
                 num_false_labels += 1
             if theory_logical_forms_writer is not None:
-                theory_logical_forms_writer.writerow([' '.join(example.theory.statements_as_texts), str(example.assertion), example.label])
+                theory_logical_forms_writer.writerow(['\n'.join(example.theory.statements_as_texts), str(example.assertion), example.label])
             program = example.theory.program_with_assertion(theorem_prover, example.assertion)
             if theory_program_writer is not None:
                 theory_program_writer.writerow([program, example.label])

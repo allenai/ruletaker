@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import argparse
 from common import Fact, Rule, Theory
+import csv
 import json
 
 import problog
@@ -15,6 +16,7 @@ from problog.engine_stack import NegativeCycle
 import re
 import time
 
+from utils import parse_statement
 
 current_milli_time = lambda: int(round(time.time() * 1000))
 
@@ -220,53 +222,96 @@ def call_theorem_prover(theorem_prover, instance_id, question_id, theory, assert
     return obtained_result, elapsed_millisecs, None
 
 
-def run_theorem_prover(theorem_prover, ip, op, report_metrics):
+def run_theorem_prover(theorem_prover, ip, ip_format, op, report_metrics):
     """Function that takes an input file, calls the theorem prover on every example and gets a label.
     Results are written to output file. Metrics are tracked and reported if report_metrics is True.
     """
     metrics = Metrics()
-    for ix, line in enumerate(ip.readlines()):
-        facts = []
-        rules = []
-        theory_assertion_instance = json.loads(line)
-        triples = theory_assertion_instance['triples']
-        ip_rules = theory_assertion_instance.get('rules',[])
-        questions = theory_assertion_instance['questions']
-        for triple_key in triples:
-            triple_obj = triples[triple_key]
-            triple_rep = triple_obj['representation']
-            fact = parse_triple_representation(triple_rep)
-            if fact is not None:
-                facts.append(fact)
-        for rule_key in ip_rules:
-            rule_obj = ip_rules[rule_key]
-            rule_rep = rule_obj['representation']
-            rule = parse_rule_representation(rule_rep)
-            if rule is not None:
-                rules.append(rule)
-        theory = Theory(facts, rules)
-        for question_key in questions:
-            question_obj = questions[question_key]
-            question_rep = question_obj['representation']
-            assertion = parse_triple_representation(question_rep)
-            gold_label = question_obj.get('answer', None)
+    if ip_format == 'current':
+        ip_reader = csv.reader(ip, delimiter=',')
+        op_writer = csv.writer(op, delimiter=',')
+        row_ix = 1
+        for row in ip_reader:
+            theory_lf_str, assertion_lf = row[0], row[1]
+            gold_label = None
+            if len(row) > 2:
+                if row[2].lower() == 'true':
+                    gold_label = True
+                elif  row[2].lower() == 'false':
+                    gold_label = False            
+            logical_forms = theory_lf_str.split('\n')
+            facts =[]
+            rules = []
+            for lf_str in logical_forms:
+                statement = parse_statement(lf_str)
+                if isinstance(statement, Fact):
+                    facts.append(statement)
+                elif isinstance(statement, Rule):
+                    rules.append(statement)
+                else:
+                    print(f'Unable to parse statement {lf_str} in row {row_ix} of input CSV file!')
+            theory = Theory(facts, rules)
+            assertion = parse_statement(assertion_lf)
+            ix = str(row_ix)
             engine_label, elapsed_millisecs, returned_exception = \
-                call_theorem_prover(theorem_prover, ix, question_key, theory, assertion, gold_label)
+                call_theorem_prover(theorem_prover, ix, ix, theory, assertion, gold_label)
             if report_metrics: 
-                metrics.update(gold_label, engine_label, returned_exception, elapsed_millisecs)               
-            op_obj = { **theory_assertion_instance, **({ f'{theorem_prover}_label': engine_label }) }
-            json.dump(op_obj, op)
-            op.write('\n')
+                metrics.update(gold_label, engine_label, returned_exception, elapsed_millisecs)
+            if gold_label is None:
+                gold_label = ''                
+            op_writer.writerow([theory_lf_str, assertion_lf, gold_label, engine_label])
+            row_ix += 1              
+    else:
+        # Ruletaker Legacy Jsonl Format    
+        for ix, line in enumerate(ip.readlines()):
+            facts = []
+            rules = []
+            theory_assertion_instance = json.loads(line)
+            triples = theory_assertion_instance['triples']
+            ip_rules = theory_assertion_instance.get('rules',[])
+            questions = theory_assertion_instance['questions']
+            for triple_key in triples:
+                triple_obj = triples[triple_key]
+                triple_rep = triple_obj['representation']
+                fact = parse_triple_representation(triple_rep)
+                if fact is not None:
+                    facts.append(fact)
+            for rule_key in ip_rules:
+                rule_obj = ip_rules[rule_key]
+                rule_rep = rule_obj['representation']
+                rule = parse_rule_representation(rule_rep)
+                if rule is not None:
+                    rules.append(rule)
+            theory = Theory(facts, rules)
+            for question_key in questions:
+                question_obj = questions[question_key]
+                question_rep = question_obj['representation']
+                assertion = parse_triple_representation(question_rep)
+                gold_label = question_obj.get('answer', None)
+                engine_label, elapsed_millisecs, returned_exception = \
+                    call_theorem_prover(theorem_prover, ix, question_key, theory, assertion, gold_label)
+                if report_metrics: 
+                    metrics.update(gold_label, engine_label, returned_exception, elapsed_millisecs)               
+                op_obj = { **theory_assertion_instance, **({ f'{theorem_prover}_label': engine_label }) }
+                json.dump(op_obj, op)
+                op.write('\n')
     if report_metrics:
         metrics.report()
 
 
 def main():
     """Tool that takes a collection of theory-assertion examples and runs them through a theorem prover.
-    Sample input jsonl format (only fields relevant to this tool are shown, there may be additional fields):
-       { "id": "AttNoneg-D3-319", ...
-         "triples":{
-            "triple1": {
+    Supported input format 1:  CSV format that is the same as the one output from the --op-theory-logical-form
+    option from theory_generator.py, with the gold label field being optional:
+        <theory statement logical forms>, <assertion logical form>, [<truth label>]
+    Sample:
+        "+ ( blue X ) -> + ( red X )<\n>
+        + ( blue 'cat' )",(+ blue('cat')),True
+    Supported input format 2: Ruletaker's legacy Jsonl format (for AI2's internal use with existing RuleTaker datasets)
+    Sample (there are additional fields not relevant and not shown here):
+    {   "id": "AttNoneg-D3-319", ...
+        "triples":{
+            "triple1":
                 "text":"Bob is cold.",
                 "representation":"(\"Bob\" \"is\" \"cold\" \"+\")"
             },
@@ -326,15 +371,18 @@ def main():
     Output jsonl format: Same as above with an additional field "problog_label": <true|false>.
     """
     parser = argparse.ArgumentParser(description='Tool to run theories through a theorem prover.')
-    parser.add_argument('--ruletaker-dataset-jsonl', required=True, help='Jsonl file containing train or dev set theory-assertion instances with labels in RuleTaker format')
+    parser.add_argument('--input-file', required=True,
+        help='Input file in either the current format with logical forms for theory, assertion, and (optional) label as a CSV file, or the legacy RuleTaker Jsonl format')
+    parser.add_argument('--input-format', choices=['current', 'legacy'], default='current', help='Input file format')
     parser.add_argument('--theorem-prover', default='problog', help='Thorem proving engine to use. Only supported one right now is problog.')
-    parser.add_argument('--theorem-prover-op-jsonl', required=True, help='Output jsonl file containing the theorem prover\'s output for each theory-assertion instance input')
+    parser.add_argument('--output-file', required=True, help='Output file containing the theorem prover\'s output for each theory-assertion instance input. \
+        Output format will be the same as input format, so this will be either a CSV or a jsonl file.')
     parser.add_argument('--report-metrics', action='store_true', help='Flag that will cause metrics (accuracy against gold labels) to be tracked and reported')
     args = parser.parse_args()
  
-    with open(args.ruletaker_dataset_jsonl, 'r') as ruletaker_dataset_jsonl, \
-        open(args.theorem_prover_op_jsonl, 'w') as theorem_prover_op_jsonl:
-        run_theorem_prover(args.theorem_prover, ruletaker_dataset_jsonl, theorem_prover_op_jsonl, args.report_metrics) 
+    with open(args.input_file, 'r') as ip, \
+        open(args.output_file, 'w') as op:
+        run_theorem_prover(args.theorem_prover, ip, args.input_format, op, args.report_metrics) 
 
 if __name__ == "__main__":
     main()

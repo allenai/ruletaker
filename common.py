@@ -25,7 +25,7 @@ class Fact:
         return set([argument for argument in self.arguments if argument.islower()])
 
     def __repr__(self):
-        return f'({self.polarity} {self.predicate}({", ".join(self.arguments)}))'
+        return f'{self.polarity} ( {self.predicate} {", ".join(self.arguments)} )'
     
     def logical_form(self, theorem_prover, standalone=True):
         """Produce a logical form representation of the fact in specified theorem prover format."""
