@@ -4,6 +4,10 @@ This repo contains tools and utilities to:
 1. Generate datasets of theories and assertions meant to test the logical reasoning capabilities of a model. For details see the paper [Transformers as Soft Reasoners over Language](https://arxiv.org/abs/2002.05867).
 2. Run existing theories through a theorem proving engine to obtain labels.
 
+
+For any features you might want, or issues, we welcome your pull requests! You can also file issues in this GitHub repository.
+
+
 ## Theory Generator
 
 We provide `theory_generator.py` to generate a dataset of theories and assertions. This helps generate a dataset with gold labels derived by running each theory through a theorem proving engine. The only supported engine currently is [Problog](https://problog.readthedocs.io/en/latest/). Anyone who wishes to use a different theorem prover needs to make appropriate code changes and plug the new engine as a choice to the `theorem_prover` command line argument which currently defualt to `problog`.
@@ -233,7 +237,7 @@ pip install -r requirements.txt
 Then use the following command line to run the theory generator. Currently we are using Problog as the underlying theorem proving engine. That is the recommended engine to use.
 
 NOTE:
-If you are running on MacOS, you may run into [this](https://github.com/wannesm/PySDD/issues/19) issue where the PySDD install is not recognized and once you try to run the program (below), you get an error like:
+If you run into [this](https://github.com/wannesm/PySDD/issues/19) issue where the PySDD install is not recognized and once you try to run the program (below), you get an error like:
 
 ```
 The SDD library is not available. Please install the PySDD package."
@@ -318,8 +322,24 @@ Average theorem proving time per example: 0.025506666666666667 secs
 
 This code has been tested and runs on Python 3.7.7 on the following platforms-
 Mac OS 10.13, 10.14
+Ubuntu 16.04.6 LTS
 
 
+# Contact
+
+If you need to directly contact someone for any reason where a GitHub pull request or an issue is not appropriate, you can email sumithrab@allenai.org.
 
 
+# License
 
+Copyright 2020 Allen Institute for AI
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may
+not use this file except in compliance with the License. You may obtain
+a copy of the License at [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0)
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
