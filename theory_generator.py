@@ -18,6 +18,8 @@ from problog.engine_stack import NegativeCycle
 from problog.formula import LogicFormula, LogicDAG
 from problog.sdd_formula import SDD 
 
+from tqdm.auto import tqdm
+
 import utils
 from utils import parse_fact, parse_rule
 
@@ -304,6 +306,8 @@ def generate_theory(grammar, config, theory_lf_file, theory_program_file, theory
     num_true_labels = 0
     num_false_labels = 0
     curr_num_examples = 0
+    progress_tracker = tqdm(total=num_examples)
+    progress_tracker.set_description(desc="Generating Examples...")
     while curr_num_examples < num_examples:
         example = generate_random_example(grammar, \
             theorem_prover_config, \
@@ -325,6 +329,8 @@ def generate_theory(grammar, config, theory_lf_file, theory_program_file, theory
             if theory_english_writer is not None:
                 theory_english_writer.writerow([theory_in_nl, assertion_in_nl, example.label])    
             curr_num_examples += 1
+            progress_tracker.update()
+    progress_tracker.close()
     print(f'Generated {curr_num_examples} examples.')
     print(f'  No. with True label: {num_true_labels}')
     print(f'  No. with False label: {num_false_labels}')      

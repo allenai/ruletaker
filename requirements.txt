@@ -2,4 +2,4 @@ Cython==0.29.21
 nltk==3.5
 numpy==1.19.0
 problog==2.1.0.42
-PySDD==0.2.10
+tqdm==4.51.0
