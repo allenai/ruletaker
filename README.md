@@ -235,13 +235,12 @@ To run any of the tools in the repo, first create a python environment with the 
 virtualenv venv
 source venv/bin/activate
 pip install -r requirements.txt
+pip install --upgrade --force-reinstall --no-binary :all: --no-deps pysdd
 ```
 
 Then use the following command line to run the theory generator.
 
 Currently we are using Problog as the underlying theorem proving engine. That is the recommended engine to use.
-
-NOTE: When running `theory_generator.py`, you may encounter an error message `problog.errors.InstallError: The SDD library is not available. Please install the PySDD package..`. If so, then you're probably running into [this issue](https://github.com/wannesm/PySDD/issues/19). To get around this, ensure that PySDD is installed properly like this: `pip install --upgrade --force-reinstall --no-binary :all: --no-deps pysdd`.
 
 ### Running the theory generator
 
