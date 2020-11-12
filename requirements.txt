@@ -1,3 +1,4 @@
+black==20.8b1
 Cython==0.29.21
 nltk==3.5
 numpy==1.19.0

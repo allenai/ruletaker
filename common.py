@@ -2,19 +2,21 @@
 import copy
 import random
 
-variables = ['X']
+variables = ["X"]
 
 # In the original RuleTaker dataset, variables were represented using the following NL.
 # These are used to check if an argument is a variable when we are loading/processing
 # existing RuleTaker theories.
-variables_ruletaker = ['someone', 'something']
+variables_ruletaker = ["someone", "something"]
 
 all_variables = variables + variables_ruletaker
+
 
 class Fact:
     """Class to represent a simple fact in a theory. It basically consists of a predicate
     with its arguments, a polarity (positive/negaitve) for it, along with an associated
-    probability.""" 
+    probability."""
+
     def __init__(self, polarity, predicate, arguments, prob=1.0):
         self.polarity = polarity
         self.predicate = predicate
@@ -26,18 +28,18 @@ class Fact:
 
     def __repr__(self):
         return f'{self.polarity} ( {self.predicate} {", ".join(self.arguments)} )'
-    
+
     def logical_form(self, theorem_prover, standalone=True):
         """Produce a logical form representation of the fact in specified theorem prover format."""
-        lf = ''
+        lf = ""
         arguments = self.arguments
-        if theorem_prover.lower() == 'problog':
-            prob = f'{self.probability}::'   
-            if self.polarity != '+':
-                lf += '\+' 
+        if theorem_prover.lower() == "problog":
+            prob = f"{self.probability}::"
+            if self.polarity != "+":
+                lf += "\+"
             lf += f'{self.predicate}({", ".join(arguments)})'
             if standalone:
-                lf = f'{prob}{lf}.'
+                lf = f"{prob}{lf}."
         return lf
 
     def nl(self, standalone=True):
@@ -64,20 +66,20 @@ class Fact:
             arg2 = format_argument_as_nl(self.arguments[1])
             fact_nl = f"{arg1} {self.predicate} {arg2}"
         if len(fact_nl) > 0:
-            if self.polarity != '+':
+            if self.polarity != "+":
                 fact_nl = f"it is not true that {fact_nl}"
-            if standalone:    
+            if standalone:
                 fact_nl += "."
-        if standalone:        
-            fact_nl = fact_nl[0].upper() + fact_nl[1:]        
-        return fact_nl            
-
+        if standalone:
+            fact_nl = fact_nl[0].upper() + fact_nl[1:]
+        return fact_nl
 
 
 class Rule:
     """Class to represent a rule in a theory, i.e., something of the form "If A then B". Antecendent
     (LHS) here is a collection of Facts and the Consequent (RHS) is a single Fact. The rule also
-    has an associated probability.""" 
+    has an associated probability."""
+
     def __init__(self, lhs, rhs, prob=1.0):
         self.lhs = lhs
         self.rhs = rhs
@@ -89,19 +91,21 @@ class Rule:
         for fact in facts:
             constants_in_rule = constants_in_rule.union(fact.constants())
         return constants_in_rule
-    
+
     def __repr__(self):
         lhs_repr = f'({" ".join(str(lhs_part) for lhs_part in self.lhs)})'
-        return f'{lhs_repr} -> {self.rhs}'
+        return f"{lhs_repr} -> {self.rhs}"
 
     def logical_form(self, theorem_prover):
         """Produce a logical form representation of the rule in specified theorem prover format."""
-        lf = ''
-        if theorem_prover.lower() == 'problog':
-            prob = f'{self.probability}::'
-            antecedant_lf = ', '.join([lhs_fact.logical_form(theorem_prover, False) for lhs_fact in self.lhs])
+        lf = ""
+        if theorem_prover.lower() == "problog":
+            prob = f"{self.probability}::"
+            antecedant_lf = ", ".join(
+                [lhs_fact.logical_form(theorem_prover, False) for lhs_fact in self.lhs]
+            )
             consequent_lf = self.rhs.logical_form(theorem_prover, False)
-            lf = f'{prob}{consequent_lf} :- {antecedant_lf}.'
+            lf = f"{prob}{consequent_lf} :- {antecedant_lf}."
         return lf
 
     def nl(self):
@@ -111,15 +115,15 @@ class Rule:
         If <LHS> then <RHS>.
         """
         lhs_nl_statements = [f.nl(standalone=False) for f in self.lhs]
-        lhs_nl = ' and '.join(lhs_nl_statements)
+        lhs_nl = " and ".join(lhs_nl_statements)
         rhs_nl = self.rhs.nl(standalone=False)
-        nl = f'If {lhs_nl} then {rhs_nl}.'
-        return nl 
+        nl = f"If {lhs_nl} then {rhs_nl}."
+        return nl
 
 
 class Theory:
     """A "theory" is a collection of facts and rules."""
-    
+
     def __init__(self, facts, rules, statements_as_texts=None):
         self.facts = facts
         self.rules = rules
@@ -129,7 +133,7 @@ class Theory:
                 self.statements_as_texts.append(str(fact))
             for rule in rules:
                 self.statements_as_texts.append(str(rule))
-        else:            
+        else:
             self.statements_as_texts = statements_as_texts
 
     def constants(self):
@@ -141,7 +145,7 @@ class Theory:
         for rule in self.rules:
             constants_in_theory = constants_in_theory.union(rule.constants())
         return constants_in_theory
- 
+
     def program(self, theorem_prover, assertion=None):
         """Creates a program for the theory in format expected by the theorem_prover."""
         fact_lfs = []
@@ -152,16 +156,15 @@ class Theory:
         for rule in self.rules:
             rule_lf = rule.logical_form(theorem_prover)
             rule_lfs.append(rule_lf)
-        prog = '\n'.join(fact_lfs + rule_lfs)    
-        if theorem_prover == 'problog' and \
-            assertion is not None:
-                assertion_lf = assertion.logical_form(theorem_prover, standalone=False)
-                prog += f'\nquery({assertion_lf}).'
+        prog = "\n".join(fact_lfs + rule_lfs)
+        if theorem_prover == "problog" and assertion is not None:
+            assertion_lf = assertion.logical_form(theorem_prover, standalone=False)
+            prog += f"\nquery({assertion_lf})."
         return prog
 
     def program_with_assertion(self, theorem_prover, assertion):
         """The program along with assertion in theorem proving engine's expected format."""
-        if theorem_prover == 'problog':
+        if theorem_prover == "problog":
             return self.program(theorem_prover, assertion)
         else:
             return self.program(theorem_prover, assertion)
@@ -169,7 +172,7 @@ class Theory:
     def nl(self):
         fact_nls = [f.nl() for f in self.facts]
         rule_nls = [r.nl() for r in self.rules]
-        nl = ' '.join(fact_nls + rule_nls)
+        nl = " ".join(fact_nls + rule_nls)
         return nl
 
     def handle_unknown_clauses(self):
@@ -187,7 +190,7 @@ class Theory:
                 args_to_choose_from.update(set(sampled_vars))
 
             arguments = random.sample(args_to_choose_from, num_arguments)
-            fact = Fact('+', predicate, arguments, 0.0)
+            fact = Fact("+", predicate, arguments, 0.0)
             return fact
 
         predicates_in_rule_antecedants = dict()
@@ -195,30 +198,38 @@ class Theory:
         predicates_in_facts = set()
         arguments_in_theory = set()
         for fact in self.facts:
-            if fact.polarity == '+':
+            if fact.polarity == "+":
                 predicates_in_facts.add(fact.predicate)
             for arg in fact.arguments:
                 arguments_in_theory.add(arg)
         for rule in self.rules:
-            if rule.rhs.polarity == '+':
+            if rule.rhs.polarity == "+":
                 predicates_in_rule_consequents.add(rule.rhs.predicate)
 
         new_facts = []
         for rule in self.rules:
             for lhs_fact in rule.lhs:
-                predicates_in_rule_antecedants[lhs_fact.predicate] = (lhs_fact.polarity, len(lhs_fact.arguments))
-        rule_antecedant_predicates_not_in_facts = predicates_in_rule_antecedants.keys() - \
-            (predicates_in_facts.union(predicates_in_rule_consequents))
+                predicates_in_rule_antecedants[lhs_fact.predicate] = (
+                    lhs_fact.polarity,
+                    len(lhs_fact.arguments),
+                )
+        rule_antecedant_predicates_not_in_facts = (
+            predicates_in_rule_antecedants.keys()
+            - (predicates_in_facts.union(predicates_in_rule_consequents))
+        )
         for rule_antecedant_predicate in rule_antecedant_predicates_not_in_facts:
             polarity = predicates_in_rule_antecedants[rule_antecedant_predicate][0]
             num_args = predicates_in_rule_antecedants[rule_antecedant_predicate][1]
-            new_fact = create_fact(rule_antecedant_predicate, arguments_in_theory, num_args, polarity)
+            new_fact = create_fact(
+                rule_antecedant_predicate, arguments_in_theory, num_args, polarity
+            )
             new_facts.append(new_fact)
         self.facts.extend(new_facts)
 
     def ground_rule(self, rule):
         """Helper that grounds variables in a given rule. Used to preprocess theories to make them
         Problog-friendly."""
+
         def ground_variable(rule, variable, constant):
             rule_copy = copy.deepcopy(rule)
             for fact in rule_copy.lhs:
@@ -263,7 +274,7 @@ class Theory:
         def has_negated_antecedent_with_variable(rule):
             found_negated_antecedent_with_variable = False
             for fact in rule.lhs:
-                if fact.polarity != '+' and has_variable_argument(fact):
+                if fact.polarity != "+" and has_variable_argument(fact):
                     found_negated_antecedent_with_variable = True
                     break
             return found_negated_antecedent_with_variable
@@ -277,19 +288,19 @@ class Theory:
                 modified_rules.append(rule)
         self.rules = modified_rules
 
-
     def preprocess(self, theorem_prover):
         """Preprocess theory to make it friendly to the theorem prover being used. Certain
         features of a theory may cause the engine to throw exceptions. Currently, this happens
         under several conditions, with Problog."""
-        if theorem_prover == 'problog':
+        if theorem_prover == "problog":
             self.handle_unknown_clauses()
-            self.ground_variables_in_negated_rule_clauses()    
+            self.ground_variables_in_negated_rule_clauses()
 
 
 class TheoryAssertionInstance:
     """Class representing a single example for a model. Consists of a theory with a corresponding
     assertion and a gold truth label for the assertion's truthiness wrt the theory."""
+
     def __init__(self, theory, assertion, label=None):
         self.theory = theory
         self.assertion = assertion
