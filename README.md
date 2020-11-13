@@ -109,7 +109,21 @@ Sample output:
     "theory": {
       "json_class": "Theory",
       "facts": [
-        {"json_class": "Fact", "polarity": "+", "predicate": "smart", "arguments": ["'Anne'"], "probability": 1.0}, {"json_class": "Fact", "polarity": "+", "predicate": "nice", "arguments": ["'Erin'"], "probability": 1.0}, {"json_class": "Fact", "polarity": "+", "predicate": "big", "arguments": ["'Charlie'"], "probability": 1.0}, {"json_class": "Fact", "polarity": "+", "predicate": "smart", "arguments": ["'Harry'"], "probability": 1.0}, {"json_class": "Fact", "polarity": "+", "predicate": "cold", "arguments": ["'Gary'"], "probability": 1.0}, {"json_class": "Fact", "polarity": "+", "predicate": "green", "arguments": ["'Dave'"], "probability": 1.0}, {"json_class": "Fact", "polarity": "+", "predicate": "blue", "arguments": ["'Charlie'"], "probability": 1.0}, {"json_class": "Fact", "polarity": "+", "predicate": "smart", "arguments": ["'Fiona'"], "probability": 1.0}, {"json_class": "Fact", "polarity": "+", "predicate": "rough", "arguments": ["'Harry'"], "probability": 1.0}, {"json_class": "Fact", "polarity": "+", "predicate": "quiet", "arguments": ["'Bob'"], "probability": 1.0}
+        {
+          "json_class": "Fact",
+          "polarity": "+",
+          "predicate": "smart",
+          "arguments": ["'Anne'"],
+          "probability": 1.0
+        },
+        {
+          "json_class": "Fact",
+          "polarity": "+",
+          "predicate": "nice",
+          "arguments": ["'Erin'"],
+          "probability": 1.0
+        },
+        ...
       ],
       "rules": [
         {
@@ -127,16 +141,17 @@ Sample output:
           ],
           "rhs": {"json_class": "Fact", "polarity": "+", "predicate": "kind", "arguments": ["X"], "probability": 1.0}
         },
-        {
-          "json_class": "Rule",
-          "lhs": [
-            {"json_class": "Fact", "polarity": "+", "predicate": "quiet", "arguments": ["X"], "probability": 1.0}
-          ],
-          "rhs": {"json_class": "Fact", "polarity": "+", "predicate": "furry", "arguments": ["X"], "probability": 1.0}
-        }
+        ...
       ]
     },
-    "assertion":{"json_class": "Fact", "polarity": "+", "predicate": "kind", "arguments": ["'Harry'"], "probability": 1.0}, "label": false
+    "assertion":{
+      "json_class": "Fact",
+      "polarity": "+",
+      "predicate": "kind",
+      "arguments": ["'Harry'"],
+      "probability": 1.0
+    },
+    "label": false
   },
   "logical_forms": {
     "json_class": "TheoryAssertionRepresentation", 
