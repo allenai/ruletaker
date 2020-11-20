@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import argparse
-from common import Fact, Rule, Theory
-import csv
+from common import Example, Fact, Rule, Theory, TheoryAssertionRepresentationWithLabel
 import json
 
 import problog
@@ -247,53 +246,53 @@ def run_theorem_prover(theorem_prover, ip, ip_format, op, report_metrics):
     """
     metrics = Metrics()
     if ip_format == "current":
-        ip_reader = csv.reader(ip, delimiter=",")
-        op_writer = csv.writer(op, delimiter=",")
         row_ix = 1
-        for row in ip_reader:
-            theory_lf_str, assertion_lf = row[0], row[1]
-            gold_label = None
-            if len(row) > 2:
-                if row[2].lower() == "true":
-                    gold_label = True
-                elif row[2].lower() == "false":
-                    gold_label = False
-            logical_forms = theory_lf_str.split("\n")
+        for ix, line in enumerate(ip.readlines()):
             facts = []
             rules = []
-            for lf_str in logical_forms:
-                statement = parse_statement(lf_str)
-                if isinstance(statement, Fact):
-                    facts.append(statement)
-                elif isinstance(statement, Rule):
-                    rules.append(statement)
-                else:
-                    print(
-                        f"Unable to parse statement {lf_str} in row {row_ix} of input CSV file!"
-                    )
-            theory = Theory(facts, rules)
-            assertion = parse_statement(assertion_lf)
-            ix = str(row_ix)
-            engine_label, elapsed_millisecs, returned_exception = call_theorem_prover(
-                theorem_prover, ix, ix, theory, assertion, gold_label
-            )
-            if report_metrics:
-                metrics.update(
-                    gold_label, engine_label, returned_exception, elapsed_millisecs
+            instance_json = json.loads(line)
+            instance = TheoryAssertionRepresentationWithLabel.from_json(instance_json)
+            if instance is not None:
+                for lf_str in instance.theory_statements:
+                    statement = parse_statement(lf_str)
+                    if isinstance(statement, Fact):
+                        facts.append(statement)
+                    elif isinstance(statement, Rule):
+                        rules.append(statement)
+                    else:
+                        print(
+                            f"Unable to parse statement {lf_str} in row {row_ix} of input jsonl file!"
+                        )
+                assertion = parse_statement(instance.assertion_statement)
+                gold_label = instance.label
+                theory = Theory(facts, rules)
+                ix = str(row_ix)
+                (
+                    engine_label,
+                    elapsed_millisecs,
+                    returned_exception,
+                ) = call_theorem_prover(
+                    theorem_prover, ix, ix, theory, assertion, gold_label
                 )
-            if gold_label is None:
-                gold_label = ""
-            op_writer.writerow([theory_lf_str, assertion_lf, gold_label, engine_label])
+                if report_metrics:
+                    metrics.update(
+                        gold_label, engine_label, returned_exception, elapsed_millisecs
+                    )
+                instance_json["label"] = engine_label
+                json.dump(instance_json, op)
+                op.write("\n")
+            else:
+                print(f"Unexpected input file format in line no. {row_ix}")
             row_ix += 1
     else:
         # Ruletaker Legacy Jsonl Format
         for ix, line in enumerate(ip.readlines()):
             facts = []
             rules = []
-            theory_assertion_instance = json.loads(line)
-            triples = theory_assertion_instance["triples"]
-            ip_rules = theory_assertion_instance.get("rules", [])
-            questions = theory_assertion_instance["questions"]
+            instance = json.loads(line)
+            triples = instance["triples"]
+            ip_rules = instance.get("rules", [])
+            questions = instance["questions"]
             for triple_key in triples:
                 triple_obj = triples[triple_key]
                 triple_rep = triple_obj["representation"]
@@ -335,12 +334,26 @@ def run_theorem_prover(theorem_prover, ip, ip_format, op, report_metrics):
 
 def main():
     """Tool that takes a collection of theory-assertion examples and runs them through a theorem prover.
-    Supported input format 1:  CSV format that is the same as the one output from the --op-theory-logical-form
-    option from theory_generator.py, with the gold label field being optional:
-        <theory statement logical forms>, <assertion logical form>, [<truth label>]
+    Supported input format 1:  Jsonl format with json objects represented as per the
+    `TheoryAssertionRepresentationWithLabel` class.
     Sample:
-        "+ ( blue X ) -> + ( red X )<\n>
-        + ( blue 'cat' )",(+ blue('cat')),True
+    {   "json_class": "TheoryAssertionRepresentation",
+        "theory_statements": [
+            "1.0::kind('Fiona').",
+            "1.0::rough('Dave').",
+            "1.0::smart('Dave').",
+            "1.0::quiet('Charlie').",
+            "1.0::kind('Dave').",
+            "1.0::white('Erin').",
+            "1.0::young(X) :- white(X).",
+            "1.0::smart(X) :- big(X), green(X).",
+            "1.0::kind(X) :- round(X), smart(X).",
+            "1.0::kind(X) :- quiet(X), round(X).",
+            "1.0::rough(X) :- round(X), red(X)."
+            "1.0::kind(X) :- quiet(X).", "1.0::furry(X) :- quiet(X), big(X)."
+        ],
+        "assertion_statement": "query(1.0::young('Dave').)."
+    }
     Supported input format 2: Ruletaker's legacy Jsonl format (for AI2's internal use with existing RuleTaker datasets)
     Sample (there are additional fields not relevant and not shown here):
     {   "id": "AttNoneg-D3-319", ...
@@ -410,7 +423,7 @@ def main():
     parser.add_argument(
         "--input-file",
         required=True,
-        help="Input file in either the current format with logical forms for theory, assertion, and (optional) label as a CSV file, or the legacy RuleTaker Jsonl format",
+        help="Input jsonl file in either the current format or the legacy RuleTaker Jsonl format",
     )
     parser.add_argument(
         "--input-format",

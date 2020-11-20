@@ -2,6 +2,9 @@
 import copy
 import random
 
+supported_theorem_provers = ["problog"]
+default_theorem_prover = "problog"
+
 variables = ["X"]
 
 # In the original RuleTaker dataset, variables were represented using the following NL.
@@ -14,7 +17,7 @@ all_variables = variables + variables_ruletaker
 
 class Fact:
     """Class to represent a simple fact in a theory. It basically consists of a predicate
-    with its arguments, a polarity (positive/negaitve) for it, along with an associated
+    with its arguments, a polarity (positive/negative) for it, along with an associated
     probability."""
 
     def __init__(self, polarity, predicate, arguments, prob=1.0):
@@ -23,13 +26,35 @@ class Fact:
         self.arguments = arguments
         self.probability = prob
 
-    def constants(self):
-        return set([argument for argument in self.arguments if argument.islower()])
-
     def __repr__(self):
         return f'{self.polarity} ( {self.predicate} {", ".join(self.arguments)} )'
 
-    def logical_form(self, theorem_prover, standalone=True):
+    @classmethod
+    def from_json(cls, json_dict):
+        json_class = json_dict.get("json_class")
+        if json_class == "Fact":
+            arguments = [argument for argument in json_dict["arguments"]]
+            return Fact(
+                json_dict["polarity"],
+                json_dict["predicate"],
+                arguments,
+                json_dict["probability"],
+            )
+        return None
+
+    def to_json(self):
+        return {
+            "json_class": "Fact",
+            "polarity": self.polarity,
+            "predicate": self.predicate,
+            "arguments": self.arguments,
+            "probability": self.probability,
+        }
+
+    def constants(self):
+        return set([argument for argument in self.arguments if argument.islower()])
+
+    def logical_form(self, theorem_prover, standalone=True, is_assertion=False):
         """Produce a logical form representation of the fact in specified theorem prover format."""
         lf = ""
         arguments = self.arguments
@@ -38,7 +63,9 @@ class Fact:
             if self.polarity != "+":
                 lf += "\+"
             lf += f'{self.predicate}({", ".join(arguments)})'
-            if standalone:
+            if is_assertion:
+                lf = f"query({lf})."
+            elif standalone:
                 lf = f"{prob}{lf}."
         return lf
 
@@ -85,6 +112,22 @@ class Rule:
         self.rhs = rhs
         self.probability = prob
 
+    def __repr__(self):
+        lhs_repr = f'({" ".join(str(lhs_part) for lhs_part in self.lhs)})'
+        return f"{lhs_repr} -> {str(self.rhs)}"
+
+    @classmethod
+    def from_json(cls, json_dict):
+        json_class = json_dict.get("json_class")
+        if json_class == "Rule":
+            lhs_facts = [Fact.from_json(fact) for fact in json_dict["lhs"]]
+            return Rule(lhs_facts, Fact.from_json(json_dict["rhs"]))
+        return None
+
+    def to_json(self):
+        lhs_facts = [fact.to_json() for fact in self.lhs]
+        return {"json_class": "Rule", "lhs": lhs_facts, "rhs": self.rhs.to_json()}
+
     def constants(self):
         facts = self.lhs + [self.rhs]
         constants_in_rule = set()
@@ -92,11 +135,7 @@ class Rule:
             constants_in_rule = constants_in_rule.union(fact.constants())
         return constants_in_rule
 
-    def __repr__(self):
-        lhs_repr = f'({" ".join(str(lhs_part) for lhs_part in self.lhs)})'
-        return f"{lhs_repr} -> {self.rhs}"
-
-    def logical_form(self, theorem_prover):
+    def logical_form(self, theorem_prover, is_assertion=False):
         """Produce a logical form representation of the rule in specified theorem prover format."""
         lf = ""
         if theorem_prover.lower() == "problog":
@@ -106,6 +145,8 @@ class Rule:
             )
             consequent_lf = self.rhs.logical_form(theorem_prover, False)
             lf = f"{prob}{consequent_lf} :- {antecedant_lf}."
+            if is_assertion:
+                lf = f"query({lf})."
         return lf
 
     def nl(self):
@@ -136,6 +177,20 @@ class Theory:
         else:
             self.statements_as_texts = statements_as_texts
 
+    @classmethod
+    def from_json(cls, json_dict):
+        json_class = json_dict.get("json_class")
+        if json_class == "Theory":
+            facts = [Fact.from_json(fact) for fact in json_dict["facts"]]
+            rules = [Rule.from_json(rule) for rule in json_dict["rules"]]
+            return Theory(facts, rules)
+        return None
+
+    def to_json(self):
+        facts = [fact.to_json() for fact in self.facts]
+        rules = [rule.to_json() for rule in self.rules]
+        return {"json_class": "Theory", "facts": facts, "rules": rules}
+
     def constants(self):
         """All the constant terms that appear in this theory. Correspond to
         terminals in the grammar from which the theory was built."""
@@ -158,16 +213,11 @@ class Theory:
             rule_lfs.append(rule_lf)
         prog = "\n".join(fact_lfs + rule_lfs)
         if theorem_prover == "problog" and assertion is not None:
-            assertion_lf = assertion.logical_form(theorem_prover, standalone=False)
-            prog += f"\nquery({assertion_lf})."
+            assertion_lf = assertion.logical_form(
+                theorem_prover, standalone=False, is_assertion=True
+            )
+            prog += f"\n{assertion_lf}"
         return prog
-
-    def program_with_assertion(self, theorem_prover, assertion):
-        """The program along with assertion in theorem proving engine's expected format."""
-        if theorem_prover == "problog":
-            return self.program(theorem_prover, assertion)
-        else:
-            return self.program(theorem_prover, assertion)
 
     def nl(self):
         fact_nls = [f.nl() for f in self.facts]
@@ -298,10 +348,172 @@ class Theory:
 
 
 class TheoryAssertionInstance:
-    """Class representing a single example for a model. Consists of a theory with a corresponding
-    assertion and a gold truth label for the assertion's truthiness wrt the theory."""
+    """Class representing a theory-assertion pair instance to be input to a model.
+    Consists a gold truth label for the assertion's truthiness with respect to the theory."""
 
     def __init__(self, theory, assertion, label=None):
         self.theory = theory
         self.assertion = assertion
         self.label = label
+
+    @classmethod
+    def from_json(cls, json_dict):
+        json_class = json_dict.get("json_class")
+        if json_class == "TheoryAssertionInstance":
+            return TheoryAssertionInstance(
+                Theory.from_json(json_dict["theory"]),
+                Fact.from_json(json_dict["assertion"]),
+                json_dict["label"],
+            )
+        return None
+
+    def to_json(self):
+        return {
+            "json_class": "TheoryAssertionInstance",
+            "theory": self.theory.to_json(),
+            "assertion": self.assertion.to_json(),
+            "label": self.label,
+        }
+
+
+class TheoryAssertionRepresentation:
+    """Class to encapsulate different representations for a TheoryAssertionInstance in an Example.
+    The representations provided currently are the logical forms (prefix notation), natural language,
+    and logic program in theorem prover format. This class consists of representations in one of the
+    aforementioned forms for the facts and rules in a theory,and the corresponding representation for
+    the assertion."""
+
+    def __init__(self, theory_statements, assertion_statement):
+        # Collection of strings
+        self.theory_statements = theory_statements
+        # String
+        self.assertion_statement = assertion_statement
+
+    @classmethod
+    def from_json(cls, json_dict):
+        json_class = json_dict.get("json_class")
+        if json_class == "TheoryAssertionRepresentation":
+            return TheoryAssertionRepresentation(
+                json_dict["theory_statements"], json_dict["assertion_statement"]
+            )
+        return None
+
+    def to_json(self):
+        return {
+            "json_class": "TheoryAssertionRepresentation",
+            "theory_statements": self.theory_statements,
+            "assertion_statement": self.assertion_statement,
+        }
+
+
+class Example:
+    """Class representing a generated example, which constitutes a TheoryAssertionInstance
+    and its representations as logical forms in prefix notation, natural language, and
+    logic programs in theorem prover formats."""
+
+    def __init__(
+        self,
+        theory_assertion_instance,
+        logical_forms=None,
+        english=None,
+        logic_program=None,
+    ):
+        self.theory_assertion_instance = theory_assertion_instance
+        if logical_forms is not None:
+            self.logical_forms = logical_forms
+        else:
+            self.logical_forms = TheoryAssertionRepresentation(
+                self.theory_assertion_instance.theory.statements_as_texts,
+                str(self.theory_assertion_instance.assertion),
+            )
+        if english is not None:
+            self.english = english
+        else:
+            fact_nls = [f.nl() for f in self.theory_assertion_instance.theory.facts]
+            rule_nls = [r.nl() for r in self.theory_assertion_instance.theory.rules]
+            assertion_nl = self.theory_assertion_instance.assertion.nl()
+            self.english = TheoryAssertionRepresentation(
+                fact_nls + rule_nls, assertion_nl
+            )
+        if logic_program is not None:
+            self.logic_program = logic_program
+        else:
+            self.logic_program = dict()
+            for theorem_prover in supported_theorem_provers:
+                fact_lfs = []
+                rule_lfs = []
+                for fact in self.theory_assertion_instance.theory.facts:
+                    fact_lf = fact.logical_form(theorem_prover)
+                    fact_lfs.append(fact_lf)
+                for rule in self.theory_assertion_instance.theory.rules:
+                    rule_lf = rule.logical_form(theorem_prover)
+                    rule_lfs.append(rule_lf)
+                assertion_lf = self.theory_assertion_instance.assertion.logical_form(
+                    theorem_prover, is_assertion=True
+                )
+                self.logic_program[theorem_prover] = TheoryAssertionRepresentation(
+                    fact_lfs + rule_lfs, assertion_lf
+                )
+
+    @classmethod
+    def from_json(cls, json_dict):
+        json_class = json_dict.get("json_class")
+        if json_class == "Example":
+            logic_program = dict()
+            for k in json_dict["logic_program"]:
+                logic_program[k] = TheoryAssertionRepresentation.from_json(
+                    json_dict["logic_program"][k]
+                )
+            return Example(
+                TheoryAssertionInstance.from_json(
+                    json_dict["theory_assertion_instance"]
+                ),
+                TheoryAssertionRepresentation.from_json(json_dict["logical_forms"]),
+                TheoryAssertionRepresentation.from_json(json_dict["english"]),
+                logic_program,
+            )
+        return None
+
+    def to_json(self):
+        logic_program = dict()
+        for k in self.logic_program:
+            logic_program[k] = self.logic_program[k].to_json()
+        return {
+            "json_class": "Example",
+            "theory_assertion_instance": self.theory_assertion_instance.to_json(),
+            "logical_forms": self.logical_forms.to_json(),
+            "english": self.english.to_json(),
+            "logic_program": logic_program,
+        }
+
+
+class TheoryAssertionRepresentationWithLabel:
+    """Class that represents the structure of expected input to theory_label_generator. Contains
+    theory statements, which is a collection of strings, a string representing the assertion. When
+    input to theory_label_generator these statements would be logical forms in prefix notation."""
+
+    def __init__(self, theory_statements, assertion_statement, label=None):
+        # Collection of strings
+        self.theory_statements = theory_statements
+        # String
+        self.assertion_statement = assertion_statement
+        self.label = label
+
+    @classmethod
+    def from_json(cls, json_dict):
+        json_class = json_dict.get("json_class")
+        if json_class == "TheoryAssertionRepresentationWithLabel":
+            return TheoryAssertionRepresentationWithLabel(
+                json_dict["theory_statements"],
+                json_dict["assertion_statement"],
+                json_dict["label"],
+            )
+        return None
+
+    def to_json(self):
+        return {
+            "json_class": "TheoryAssertionRepresentationWithLabel",
+            "theory_statements": self.theory_statements,
+            "assertion_statement": self.assertion_statement,
+            "label": self.label,
+        }

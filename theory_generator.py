@@ -1,7 +1,6 @@
 import argparse
-import csv
 import common
-from common import Fact, Rule, Theory, TheoryAssertionInstance
+from common import Example, Fact, Rule, Theory
 import json
 
 import nltk
@@ -297,7 +296,7 @@ def generate_random_example(
 
         if label is not None:
             # Construct example with label
-            example = TheoryAssertionInstance(theory, assertion, label)
+            example = Example(TheoryAssertionInstance(theory, assertion, label))
 
     return example
 
@@ -305,35 +304,19 @@ def generate_random_example(
 def generate_theory(
     grammar,
     config,
-    theory_lf_file,
-    theory_program_file,
-    theory_english_file,
+    theory_op_file,
     theorem_prover,
 ):
     """Generate a theory with specified properties per config file specifications, using the
     specified grammar.
     Arguments:
-    theory_lf_file: Optional output file containing generated theories logical forms. Predicates
-    are in prefix notation; e.g.: <polarity> (<predicate> <arg1> <arg2>).
-    theory_program_file: Optional output file containing programs for the generated theories in
-    the format required for the chosen theorem prover.
-    theory_english_file: Optional output file containing generated theories in English.
+    theory_op_file: Output jsonl file containing the generated examples.
     """
 
     # Get Theorem Prover Config and initialize Theorem Prover
     theorem_prover_config = TheoremProverConfig(
         grammar, **config["theory"]["theorem_prover"]
     )
-
-    theory_logical_forms_writer = None
-    theory_program_writer = None
-    theory_english_writer = None
-    if theory_lf_file is not None:
-        theory_logical_forms_writer = csv.writer(theory_lf_file, delimiter=",")
-    if theory_program_file is not None:
-        theory_program_writer = csv.writer(theory_program_file, delimiter=",")
-    if theory_english_file is not None:
-        theory_english_writer = csv.writer(theory_english_file, delimiter=",")
 
     num_examples = config["theory"]["num_examples"]
     statement_types = config["theory"]["statement_types_per_example"]
@@ -354,29 +337,21 @@ def generate_theory(
             theorem_prover,
         )
         if example is not None:
-            if example.label:
+            if example.theory_assertion_instance.label:
                 num_true_labels += 1
             else:
                 num_false_labels += 1
-            if theory_logical_forms_writer is not None:
-                theory_logical_forms_writer.writerow(
-                    [
-                        "\n".join(example.theory.statements_as_texts),
-                        str(example.assertion),
-                        example.label,
-                    ]
+            json.dump(example.to_json(), theory_op_file)
+            theory_op_file.write("\n")
+
+            theory_assertion_instance_representation_labeled = (
+                TheoryAssertionRepresentationWithLabel(
+                    example.logical_forms.theory_statements,
+                    example.logical_forms.assertion_statement,
+                    example.theory_assertion_instance.label,
                 )
-            program = example.theory.program_with_assertion(
-                theorem_prover, example.assertion
             )
-            if theory_program_writer is not None:
-                theory_program_writer.writerow([program, example.label])
-            theory_in_nl = example.theory.nl()
-            assertion_in_nl = example.assertion.nl()
-            if theory_english_writer is not None:
-                theory_english_writer.writerow(
-                    [theory_in_nl, assertion_in_nl, example.label]
-                )
+
             curr_num_examples += 1
             progress_tracker.update()
     progress_tracker.close()
@@ -451,20 +426,13 @@ def main():
         help="Json format config file with parameters to generate theory",
     )
     parser.add_argument(
-        "--op-theory-logical-form",
-        help="Csv file with the predicates generated from the grammar. Format: <theory-predicates>, <predicate-to-prove>, <label>",
-    )
-    parser.add_argument(
-        "--op-theory-program",
-        help="Csv file with the logic program for each generated theory in the format appropriate for the chosen theorem prover. Format: <program>, <label>",
-    )
-    parser.add_argument(
-        "--op-theory-english",
-        help="Csv file contaning theories in English, to use for training. Format: <theory-in-english-sentences>, <assertion>, <label: True/False>",
+        "--op-theory-jsonl",
+        help="Output Jsonl file containing an example json object per line. Json object has the format of the TheoryAssertionInstance class",
     )
     parser.add_argument(
         "--theorem-prover",
-        default="problog",
+        choices=common.supported_theorem_provers,
+        default=common.default_theorem_prover,
         help="Thorem proving engine to use. Only supported one right now is problog.",
     )
     args = parser.parse_args()
@@ -472,15 +440,7 @@ def main():
     with open(args.grammar, "r") as grammar_file, open(
         args.config_json, "r"
     ) as config_json_file:
-        theory_lf_file = None
-        theory_program_file = None
-        theory_english_file = None
-        if args.op_theory_logical_form is not None:
-            theory_lf_file = open(args.op_theory_logical_form, "w")
-        if args.op_theory_program is not None:
-            theory_program_file = open(args.op_theory_program, "w")
-        if args.op_theory_english is not None:
-            theory_english_file = open(args.op_theory_english, "w")
+        theory_op_file = open(args.op_theory_jsonl, "w")
         config = json.load(config_json_file)
         production_strs = preprocess_pcfg(grammar_file)
         grammar_str = "\n".join(production_strs)
@@ -488,9 +448,7 @@ def main():
         generate_theory(
             grammar,
             config,
-            theory_lf_file,
-            theory_program_file,
-            theory_english_file,
+            theory_op_file,
             args.theorem_prover,
         )
 
