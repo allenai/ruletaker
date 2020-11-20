@@ -202,7 +202,7 @@ class Theory:
         return constants_in_theory
 
     def program(self, theorem_prover, assertion=None):
-        # Creates a program for the theory in format expected by the theorem_prover.
+        """Creates a program for the theory in format expected by the theorem_prover."""
         fact_lfs = []
         rule_lfs = []
         for fact in self.facts:
@@ -348,7 +348,7 @@ class Theory:
 
 
 class TheoryAssertionInstance:
-    """Class representing a theory-assertion pair exainstance to be input to a model.
+    """Class representing a theory-assertion pair instance to be input to a model.
     Consists a gold truth label for the assertion's truthiness with respect to the theory."""
 
     def __init__(self, theory, assertion, label=None):
