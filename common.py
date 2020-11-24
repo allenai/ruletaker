@@ -29,6 +29,23 @@ class Fact:
     def __repr__(self):
         return f'{self.polarity} ( {self.predicate} {", ".join(self.arguments)} )'
 
+    def __eq__(self, other):
+        return (
+            isinstance(other, Fact)
+            and self.polarity == other.polarity
+            and self.predicate == other.predicate
+            and self.arguments == other.arguments
+            and self.probability == other.probability
+        )
+
+    def __lt__(self, other):
+        return isinstance(other, Fact) and repr(self) < repr(other)
+
+    def __hash__(self):
+        return hash(
+            (self.polarity, self.predicate, tuple(self.arguments), self.probability)
+        )
+
     @classmethod
     def from_json(cls, json_dict):
         json_class = json_dict.get("json_class")
@@ -116,6 +133,26 @@ class Rule:
         lhs_repr = f'({" ".join(str(lhs_part) for lhs_part in self.lhs)})'
         return f"{lhs_repr} -> {str(self.rhs)}"
 
+    def __eq__(self, other):
+        return (
+            isinstance(other, Rule)
+            and set(self.lhs) == set(other.lhs)
+            and self.rhs == other.rhs
+            and self.probability == other.probability
+        )
+
+    def sorted_lhs(self):
+        lhs_reprs = [repr(fact) for fact in self.lhs]
+        return " || ".join(sorted(lhs_reprs))
+
+    def __lt__(self, other):
+        return isinstance(other, Rule) and (
+            self.sorted_lhs() < other.sorted_lhs() or repr(self.rhs) < repr(other.rhs)
+        )
+
+    def __hash__(self):
+        return hash((tuple(sorted(self.lhs)), self.rhs, self.probability))
+
     @classmethod
     def from_json(cls, json_dict):
         json_class = json_dict.get("json_class")
@@ -176,6 +213,16 @@ class Theory:
                 self.statements_as_texts.append(str(rule))
         else:
             self.statements_as_texts = statements_as_texts
+
+    def __eq__(self, other):
+        return (
+            isinstance(other, Theory)
+            and set(self.facts) == set(other.facts)
+            and set(self.rules) == set(other.rules)
+        )
+
+    def __hash__(self):
+        return hash((tuple(sorted(self.facts)), tuple(sorted(self.rules))))
 
     @classmethod
     def from_json(cls, json_dict):
@@ -356,6 +403,17 @@ class TheoryAssertionInstance:
         self.assertion = assertion
         self.label = label
 
+    def __eq__(self, other):
+        return (
+            isinstance(other, TheoryAssertionInstance)
+            and self.theory == other.theory
+            and self.assertion == other.assertion
+            and self.label == other.label
+        )
+
+    def __hash__(self):
+        return hash((self.theory, self.assertion, self.label))
+
     @classmethod
     def from_json(cls, json_dict):
         json_class = json_dict.get("json_class")
@@ -388,6 +446,16 @@ class TheoryAssertionRepresentation:
         self.theory_statements = theory_statements
         # String
         self.assertion_statement = assertion_statement
+
+    def __hash__(self):
+        return hash((tuple(self.theory_statements), self.assertassertion_statemention))
+
+    def __eq__(self, other):
+        return (
+            isinstance(other, TheoryAssertionRepresentation)
+            and set(self.theory_statements) == set(other.theory_statements)
+            and self.assertion_statement == other.assertion_statement
+        )
 
     @classmethod
     def from_json(cls, json_dict):
@@ -455,6 +523,25 @@ class Example:
                     fact_lfs + rule_lfs, assertion_lf
                 )
 
+    def __eq__(self, other):
+        return (
+            isinstance(other, Example)
+            and self.theory_assertion_instance == other.theory_assertion_instance
+            and self.logical_forms == other.logical_forms
+            and self.english == other.english
+            and self.logic_program == other.logic_program
+        )
+
+    def __hash__(self):
+        return hash(
+            (
+                self.theory_assertion_instance,
+                self.logical_forms,
+                self.english,
+                self.logic_program,
+            )
+        )
+
     @classmethod
     def from_json(cls, json_dict):
         json_class = json_dict.get("json_class")
@@ -498,6 +585,17 @@ class TheoryAssertionRepresentationWithLabel:
         # String
         self.assertion_statement = assertion_statement
         self.label = label
+
+    def __eq__(self, other):
+        return (
+            isinstance(other, TheoryAssertionRepresentationWithLabel)
+            and self.theory_statements == other.theory_statements
+            and self.assertion_statement == other.assertion_statement
+            and self.label == other.label
+        )
+
+    def __hash__(self):
+        return hash((self.theory_statements, self.assertion_statement, self.label))
 
     @classmethod
     def from_json(cls, json_dict):

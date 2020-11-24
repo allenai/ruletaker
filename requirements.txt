@@ -3,4 +3,5 @@ Cython==0.29.21
 nltk==3.5
 numpy==1.19.0
 problog==2.1.0.42
+pytest==6.1.2
 tqdm==4.51.0
