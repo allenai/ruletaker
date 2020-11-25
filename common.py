@@ -41,8 +41,7 @@ class Fact:
     def __lt__(self, other):
         return isinstance(other, Fact) and (
             repr(self) < repr(other)
-            or repr(self) == repr(other)
-            and self.probability < other.probability
+            or (repr(self) == repr(other) and self.probability < other.probability)
         )
 
     def __hash__(self):
