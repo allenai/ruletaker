@@ -1,6 +1,13 @@
 import argparse
 import common
-from common import Example, Fact, Rule, Theory
+from common import (
+    Example,
+    Fact,
+    Rule,
+    Theory,
+    TheoryAssertionInstance,
+    TheoryAssertionRepresentationWithLabel,
+)
 import json
 
 import nltk
