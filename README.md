@@ -4,13 +4,20 @@ This repo contains tools and utilities to:
 1. Generate datasets of theories and assertions meant to test the logical reasoning capabilities of a model. For details see the paper [Transformers as Soft Reasoners over Language](https://arxiv.org/abs/2002.05867).
 2. Run existing theories through a theorem proving engine to obtain labels.
 
+It uses [Problog](https://problog.readthedocs.io/en/latest/) as the theorem-proving engine to generate labels for theory-assertion examples.
 
 For any features you might want, or issues, we welcome your pull requests! You can also file issues in this GitHub repository.
+
+## About this release
+
+The original RuleTaker theory generator and inference engine were written in Lisp. This repository is a more stable and re-engineered Python version of that original software. The theory generator here uses a declarative grammar that users can modify to generate different theories with different distributions. For the inference engine, we here use ProbLog, with probabilities 1 and 0 to denote T and F. The ProbLog reasoner generates identical results to the original Lisp inference engine, with one exception: The original RuleTaker datasets accidentally included a few non-stratified, inconsistent theories (for theories with negation). For these, the ProbLog reasoner (correctly) throws an error. We will be releasing the Problog-syntax version of the original RuleTaker theories shortly.
+
+In addition, when ProbLog proves a queried fact, it also returns an SLD tree containing the proof. However, this initial release does not use those SLD trees, thus this software does not return a proof nor proof depth for the query assertions that ProbLog is able to prove.
 
 
 ## Theory Generator
 
-We provide `theory_generator.py` to generate a dataset of theories and assertions. This helps generate a dataset with gold labels derived by running each theory through a theorem proving engine. The only supported engine currently is [Problog](https://problog.readthedocs.io/en/latest/). Anyone who wishes to use a different theorem prover needs to make appropriate code changes and plug the new engine as a choice to the `theorem_prover` command line argument which currently defaults to `problog`.
+We provide `theory_generator.py` to generate a dataset of theories and assertions. This helps generate a dataset with gold labels derived by running each theory through a theorem proving engine. The only supported engine currently is Problog. Anyone who wishes to use a different theorem prover needs to make appropriate code changes and plug the new engine as a choice to the `theorem_prover` command line argument which currently defaults to `problog`.
 
 The inputs and output of this tool and a description of how to use it is described in this section.
 
