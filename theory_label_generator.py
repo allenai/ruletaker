@@ -323,7 +323,7 @@ def run_theorem_prover(theorem_prover, ip, ip_format, op, report_metrics):
                         gold_label, engine_label, returned_exception, elapsed_millisecs
                     )
                 op_obj = {
-                    **theory_assertion_instance,
+                    **instance,
                     **({f"{theorem_prover}_label": engine_label}),
                 }
                 json.dump(op_obj, op)
