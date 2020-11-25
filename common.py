@@ -39,7 +39,11 @@ class Fact:
         )
 
     def __lt__(self, other):
-        return isinstance(other, Fact) and repr(self) < repr(other)
+        return isinstance(other, Fact) and (
+            repr(self) < repr(other)
+            or repr(self) == repr(other)
+            and self.probability < other.probability
+        )
 
     def __hash__(self):
         return hash(
@@ -147,7 +151,16 @@ class Rule:
 
     def __lt__(self, other):
         return isinstance(other, Rule) and (
-            self.sorted_lhs() < other.sorted_lhs() or repr(self.rhs) < repr(other.rhs)
+            self.sorted_lhs() < other.sorted_lhs()
+            or (
+                self.sorted_lhs() == other.sorted_lhs()
+                and repr(self.rhs) < repr(other.rhs)
+            )
+            or (
+                self.sorted_lhs() == other.sorted_lhs
+                and self.rhs == other.rhs
+                and self.probability < other.probability
+            )
         )
 
     def __hash__(self):
