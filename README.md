@@ -231,9 +231,10 @@ Input can be provided in one of two formats.
 File in JSONL format, i.e., a JSON object per line with structure as defined by the `TheoryAssertionRepresentationWithLabel` class:
 ```
 {
-  "theory_statements": [<list of theory statement logical forms in prefix notation>],
-  "assertion_statement": <string containing the assertion in prefix notation>,
-  "label": <optional boolean label>
+  "theory_statements": List of theory statement logical forms in prefix notation.
+  "assertion_statement": String containing the assertion in prefix notation.
+  "label": Optional Boolean label field. input object may or may not have a label (gold label) specified, to compare accuracy against. Output object will contain a boolean value as returned from the theorem prover or None if the theorem prover threw an exception.
+  "exception": Optional String field that is a placeholder for the output object use to report exceptions if any, from the theorem prover.
 }
 ```
 
@@ -257,7 +258,8 @@ Sample input:
     "[ + ( nice X ) ] -> + ( green X )",
     "+ ( green 'Gary' )",
   "assertion_statement": "+ ( kind 'Fiona' )",
-  "label": false
+  "label": false,
+  "exception": None
 }
 ```
 
@@ -333,7 +335,7 @@ This is primarily for AI2's internal use. This is the RuleTaker legacy JSONL for
 The output file is in JSONL format and the exact structure depends on the chosen input format, i.e., current or legacy.
 
 #### With 'current' input_format (default)
-The output objects has the same structure as the input objects, and this is as defined in the `TheoryAssertionRepresentationWithLabel` class. The `label` field in the output object will contain the value obtained from running the example through the chosen theorem prover.
+The output object has the same structure as the input objects, and this is as defined in the `TheoryAssertionRepresentationWithLabel` class. The `label` field in the output object will contain the value obtained from running the example through the chosen theorem prover.
 
 Sample output:
 ```
@@ -356,12 +358,24 @@ Sample output:
     "[ + ( nice X ) ] -> + ( green X )",
     "+ ( green 'Gary' )"],
   "assertion_statement": "+ ( kind 'Fiona' )",
-  "label": false
+  "label": false,
+  "exception": None 
 }
 ```
 
 ### With 'legacy' input_format
-The output will have the same structure as the input object, but with an additional Boolean field called '<theorem_prover>_label', for e.g., `problog_label`.
+The same json structure as input, EXCEPT that each question object (see Q1, Q2 etc under "questions"above), will have two additional fields and an optional third one:
+```
+  <theorem_prover>_label: e.g., `problog_label` with boolean value
+  <theorem_prover>_program: e.g., `problog_program` with text containing the logic program that was input to problog
+  <theorem_prover>_exception: e.g., `problog_exception` : optional string value field containing the name of the exception
+  if one was thrown
+```
+
+Sample output question object snippet:
+```
+
+```
 
 ## Running the tools
 

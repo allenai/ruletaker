@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import argparse
 from common import Example, Fact, Rule, Theory, TheoryAssertionRepresentationWithLabel
+import copy
 import json
 
 import problog
@@ -36,10 +37,8 @@ class Metrics:
         self.total_elapsed_millisecs = 0
         self.num_true_with_exception = 0
         self.num_false_with_exception = 0
-        self.num_correct_true_with_exception = 0
-        self.num_correct_false_with_exception = 0
-        self.num_incorrect_true_no_exception = 0
-        self.num_incorrect_false_no_exception = 0
+        self.num_incorrect_true = 0
+        self.num_incorrect_false = 0
         self.num_no_gold_label = 0
         self.exception_num_failures = dict()
 
@@ -64,23 +63,20 @@ class Metrics:
                     self.num_correct_true += 1
                 if engine_exception is not None:
                     self.num_true_with_exception += 1
-                    if engine_label:
-                        self.num_correct_true_with_exception += 1
                 else:
                     if not engine_label:
-                        self.num_incorrect_true_no_exception += 1
+                        self.num_incorrect_true += 1
             else:
                 self.num_false += 1
-                if not engine_label:
+                if engine_label is not None and not engine_label:
                     self.num_correct_false += 1
                 if engine_exception is not None:
                     self.num_false_with_exception += 1
-                    if not engine_label:
-                        self.num_correct_false_with_exception += 1
                 else:
                     if engine_label:
-                        self.num_incorrect_false_no_exception += 1
+                        self.num_incorrect_false += 1
             self.num_correct = self.num_correct_true + self.num_correct_false
+            self.num_incorrect = self.num_incorrect_true + self.num_incorrect_false
 
     def report(self):
         """Report summarizing the overall accuracy, and breakdown by True and False (gold)
@@ -96,26 +92,32 @@ class Metrics:
                     self.num_true_with_exception + self.num_false_with_exception
                 )
                 print(f"  No. true: {self.num_true}")
-                print(f"    No. correct: {self.num_correct_true}")
                 print(f"    No. of exceptions: {self.num_true_with_exception}")
                 print(
-                    f"        No. correct with exceptions: {self.num_correct_true_with_exception}"
+                    f"     Preformance on {self.num_true - self.num_true_with_exception} examples WITHOUT exception:"
                 )
-                print(
-                    f"    No. incorrect without exception: {self.num_incorrect_true_no_exception}"
-                )
+                print(f"       No. correct: {self.num_correct_true}")
+                print(f"       No. incorrect: {self.num_incorrect_true}")
                 print(f"  No. false: {self.num_false}")
-                print(f"    No. correct: {self.num_correct_false}")
                 print(f"    No. of exceptions: {self.num_false_with_exception}")
                 print(
-                    f"        No. correct with exceptions: {self.num_correct_false_with_exception}"
+                    f"     Preformance on {self.num_false - self.num_false_with_exception} examples WITHOUT exception:"
+                )
+                print(f"       No. correct: {self.num_correct_false}")
+                print(f"       No. incorrect: {self.num_incorrect_false}")
+                print(f"Total no. with exceptions: {total_no_of_exceptions}")
+                print(
+                    f"Performance on {self.num_examples - total_no_of_exceptions} examples WITHOUT excpetion:"
+                )
+                print(f"   Total no. correct: {self.num_correct}")
+                print(f"   Total no. incorrect: {self.num_incorrect}")
+                print(
+                    "Accuracy (no exception examples): "
+                    + f"{(self.num_correct * 100.0) / (self.num_examples - total_no_of_exceptions)}"
                 )
                 print(
-                    f"    No. incorrect without exception: {self.num_incorrect_false_no_exception}"
+                    f"Accuracy (total): {(self.num_correct * 100.0) / self.num_examples}"
                 )
-                print(f"Total no. correct: {self.num_correct}")
-                print(f"Total no. with exceptions: {total_no_of_exceptions}")
-                print(f"Accuracy: {(self.num_correct * 100.0) / self.num_examples}")
                 if total_no_of_exceptions > 0:
                     print("\nFailure Breakdown by Exception:")
                     for exception in self.exception_num_failures:
@@ -226,7 +228,7 @@ def call_theorem_prover(
             end_millisecs = current_milli_time()
             elapsed_millisecs = end_millisecs - start_millisecs
             result_tuples = [(k, v) for k, v in result.items()]
-            obtained_result = result_tuples[0][1] != 0.0
+            obtained_result = result_tuples[0][1] != float(0)
             return obtained_result, elapsed_millisecs, None
         except (NegativeCycle, NonGroundProbabilisticClause, UnknownClause) as e:
             end_millisecs = current_milli_time()
@@ -234,20 +236,22 @@ def call_theorem_prover(
             print(
                 f"!!!Encountered Exception at instance id {instance_id}, question id {question_id}: {e}"
             )
-            obtained_result = assertion.polarity != "+"
             exception_name = str(type(e)).lstrip("<class '").rstrip("'>")
-            return obtained_result, elapsed_millisecs, exception_name
+            return None, elapsed_millisecs, exception_name
     return obtained_result, elapsed_millisecs, None
 
 
-def run_theorem_prover(theorem_prover, ip, ip_format, op, report_metrics):
+def run_theorem_prover(
+    theorem_prover, ip, ip_format, op, exclude_mismatches, report_metrics
+):
     """Function that takes an input file, calls the theorem prover on every example and gets a label.
     Results are written to output file. Metrics are tracked and reported if report_metrics is True.
     """
     metrics = Metrics()
     if ip_format == "current":
         row_ix = 1
-        for ix, line in enumerate(ip.readlines()):
+        written_row_ix = 1
+        for line in ip.readlines():
             facts = []
             rules = []
             instance_json = json.loads(line)
@@ -278,14 +282,24 @@ def run_theorem_prover(theorem_prover, ip, ip_format, op, report_metrics):
                     metrics.update(
                         gold_label, engine_label, returned_exception, elapsed_millisecs
                     )
-                instance_json["label"] = engine_label
-                json.dump(instance_json, op)
-                op.write("\n")
+                if (
+                    not exclude_mismatches
+                    or gold_label is None
+                    or (engine_label is not None and (engine_label == gold_label))
+                ):
+                    instance_json["label"] = engine_label
+                    if returned_exception is not None:
+                        instance_json["exception"] = returned_exception
+                    if written_row_ix > 1:
+                        op.write("\n")
+                    json.dump(instance_json, op)
+                    written_row_ix += 1
             else:
                 print(f"Unexpected input file format in line no. {row_ix}")
             row_ix += 1
     else:
         # Ruletaker Legacy Jsonl Format
+        written_row_ix = 1
         for ix, line in enumerate(ip.readlines()):
             facts = []
             rules = []
@@ -306,6 +320,7 @@ def run_theorem_prover(theorem_prover, ip, ip_format, op, report_metrics):
                 if rule is not None:
                     rules.append(rule)
             theory = Theory(facts, rules)
+            questions_and_labels = {}
             for question_key in questions:
                 question_obj = questions[question_key]
                 question_rep = question_obj["representation"]
@@ -322,12 +337,27 @@ def run_theorem_prover(theorem_prover, ip, ip_format, op, report_metrics):
                     metrics.update(
                         gold_label, engine_label, returned_exception, elapsed_millisecs
                     )
-                op_obj = {
-                    **instance,
-                    **({f"{theorem_prover}_label": engine_label}),
-                }
-                json.dump(op_obj, op)
-                op.write("\n")
+                if (
+                    not exclude_mismatches
+                    or gold_label is None
+                    or (engine_label is not None and (engine_label == gold_label))
+                ):
+                    question_and_label = copy.deepcopy(question_obj)
+                    program = theory.program(theorem_prover, assertion)
+                    question_and_label[f"{theorem_prover}_program"] = program
+                    question_and_label[f"{theorem_prover}_label"] = engine_label
+                    if returned_exception is not None:
+                        question_and_label[
+                            f"{theorem_prover}_exception"
+                        ] = returned_exception
+                    questions_and_labels[question_key] = question_and_label
+            if len(questions_and_labels) > 0:
+                new_instance = copy.deepcopy(instance)
+                new_instance["questions"] = questions_and_labels
+                if written_row_ix > 1:
+                    op.write("\n")
+                json.dump(new_instance, op)
+                written_row_ix += 1
     if report_metrics:
         metrics.report()
 
@@ -335,24 +365,33 @@ def run_theorem_prover(theorem_prover, ip, ip_format, op, report_metrics):
 def main():
     """Tool that takes a collection of theory-assertion examples and runs them through a theorem prover.
     Supported input format 1:  Jsonl format with json objects represented as per the
-    `TheoryAssertionRepresentationWithLabel` class.
+    `TheoryAssertionRepresentationWithLabel` class where the `theory_statements` field contains the
+    statements in our prefix notation as logical forms.
     Sample:
-    {   "json_class": "TheoryAssertionRepresentation",
+    {   "json_class": "TheoryAssertionRepresentationWithLabel",
         "theory_statements": [
-            "1.0::kind('Fiona').",
-            "1.0::rough('Dave').",
-            "1.0::smart('Dave').",
-            "1.0::quiet('Charlie').",
-            "1.0::kind('Dave').",
-            "1.0::white('Erin').",
-            "1.0::young(X) :- white(X).",
-            "1.0::smart(X) :- big(X), green(X).",
-            "1.0::kind(X) :- round(X), smart(X).",
-            "1.0::kind(X) :- quiet(X), round(X).",
-            "1.0::rough(X) :- round(X), red(X)."
-            "1.0::kind(X) :- quiet(X).", "1.0::furry(X) :- quiet(X), big(X)."
+            "+ ( smart 'Gary' )",
+            "+ ( kind 'Fiona' )",
+            "+ ( blue 'Harry' )",
+            "+ ( quiet 'Erin' )",
+            "+ ( red 'Charlie' )",
+            "[ + ( red X ) ] -> + ( nice X )",
+            "+ ( white 'Gary' )",
+            "+ ( young 'Fiona' )",
+            "+ ( big 'Charlie' )",
+            "[ + ( green X ) ] -> + ( kind X )",
+            "+ ( young 'Erin' )",
+            "+ ( quiet 'Dave' )",
+            "+ ( big 'Gary' )",
+            "+ ( smart 'Anne' )",
+            "+ ( green 'Anne' )",
+            "+ ( cold 'Bob' )",
+            "[ + ( round X ) , + ( big X ) ] -> + ( white X )",
+            "+ ( furry 'Anne' )", "+ ( red 'Harry' )"
         ],
-        "assertion_statement": "query(1.0::young('Dave').)."
+        "assertion_statement": "+ ( cold 'Dave' )"},
+        "label": false,
+        "exception": None
     }
     Supported input format 2: Ruletaker's legacy Jsonl format (for AI2's internal use with existing RuleTaker datasets)
     Sample (there are additional fields not relevant and not shown here):
@@ -415,7 +454,17 @@ def main():
             }
         }
     }
-    Output jsonl format: Same as above with an additional field "problog_label": <true|false>.
+    Output jsonl format:
+    For input format 1:
+        Same as input structure `TheoryAssertionRepresentationWithLabel` with `label` field containing <true|false> as output
+        by the theorem_prover, and the `exception` field populated if the theorem prover threw an exception.
+    For input format 2:
+        The same json structureas input, EXCEPT that each question object (see Q1, Q2 etc under "questions"
+        above), will have two additional fields and an optional third one:
+            <theorem_prover>_label: e.g., `problog_label` with boolean value
+            <theorem_prover>_program: e.g., `problog_program` with text containing the logic program that was input to problog
+            <theorem_prover>_exception: e.g., `problog_exception` : optional string value field containing the name of the exception
+            if one was thrown
     """
     parser = argparse.ArgumentParser(
         description="Tool to run theories through a theorem prover."
@@ -443,15 +492,25 @@ def main():
         Output format will be the same as input format, so this will be either a CSV or a jsonl file.",
     )
     parser.add_argument(
+        "--exclude-mismatches",
+        action="store_true",
+        default=False,
+        help="Flag that will cause examples with differing labels from gold labels if presentto be included in the output file",
+    )
+    parser.add_argument(
         "--report-metrics",
         action="store_true",
         help="Flag that will cause metrics (accuracy against gold labels) to be tracked and reported",
     )
     args = parser.parse_args()
-
     with open(args.input_file, "r") as ip, open(args.output_file, "w") as op:
         run_theorem_prover(
-            args.theorem_prover, ip, args.input_format, op, args.report_metrics
+            args.theorem_prover,
+            ip,
+            args.input_format,
+            op,
+            args.exclude_mismatches,
+            args.report_metrics,
         )
 
 

@@ -319,7 +319,6 @@ def generate_theory(
     Arguments:
     theory_op_file: Output jsonl file containing the generated examples.
     """
-
     # Get Theorem Prover Config and initialize Theorem Prover
     theorem_prover_config = TheoremProverConfig(
         grammar, **config["theory"]["theorem_prover"]
@@ -350,15 +349,6 @@ def generate_theory(
                 num_false_labels += 1
             json.dump(example.to_json(), theory_op_file)
             theory_op_file.write("\n")
-
-            theory_assertion_instance_representation_labeled = (
-                TheoryAssertionRepresentationWithLabel(
-                    example.logical_forms.theory_statements,
-                    example.logical_forms.assertion_statement,
-                    example.theory_assertion_instance.label,
-                )
-            )
-
             curr_num_examples += 1
             progress_tracker.update()
     progress_tracker.close()

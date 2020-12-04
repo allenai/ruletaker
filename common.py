@@ -41,7 +41,7 @@ class Fact:
     def __lt__(self, other):
         return isinstance(other, Fact) and (
             repr(self) < repr(other)
-            or (repr(self) == repr(other) and self.probability < other.probability)
+            or (repr(self) == repr(other) and (self.probability < other.probability))
         )
 
     def __hash__(self):
@@ -589,14 +589,19 @@ class Example:
 class TheoryAssertionRepresentationWithLabel:
     """Class that represents the structure of expected input to theory_label_generator. Contains
     theory statements, which is a collection of strings, a string representing the assertion. When
-    input to theory_label_generator these statements would be logical forms in prefix notation."""
+    input to theory_label_generator these statements would be logical forms in prefix notation.
+    exception: this field is only meaningful when the theory_label_generator is used to run some
+    existing theories through the theorem prover, which may have resulted in some exception."""
 
-    def __init__(self, theory_statements, assertion_statement, label=None):
+    def __init__(
+        self, theory_statements, assertion_statement, label=None, exception=None
+    ):
         # Collection of strings
         self.theory_statements = theory_statements
         # String
         self.assertion_statement = assertion_statement
         self.label = label
+        self.exception = exception
 
     def __eq__(self, other):
         return (
@@ -604,10 +609,18 @@ class TheoryAssertionRepresentationWithLabel:
             and self.theory_statements == other.theory_statements
             and self.assertion_statement == other.assertion_statement
             and self.label == other.label
+            and self.exception == other.exception
         )
 
     def __hash__(self):
-        return hash((self.theory_statements, self.assertion_statement, self.label))
+        return hash(
+            (
+                self.theory_statements,
+                self.assertion_statement,
+                self.label,
+                self.exception,
+            )
+        )
 
     @classmethod
     def from_json(cls, json_dict):
@@ -617,6 +630,7 @@ class TheoryAssertionRepresentationWithLabel:
                 json_dict["theory_statements"],
                 json_dict["assertion_statement"],
                 json_dict["label"],
+                json_dict["exception"],
             )
         return None
 
@@ -626,4 +640,5 @@ class TheoryAssertionRepresentationWithLabel:
             "theory_statements": self.theory_statements,
             "assertion_statement": self.assertion_statement,
             "label": self.label,
+            "exception": self.exception,
         }
