@@ -408,12 +408,17 @@ class Theory:
 
 class TheoryAssertionInstance:
     """Class representing a theory-assertion pair instance to be input to a model.
-    Consists a gold truth label for the assertion's truthiness with respect to the theory."""
+    Consists a gold truth label for the assertion's truthiness with respect to the theory.
+    The `exception` field is a placeholder to store any exceptions thrown by the theorem prover
+    on existing theory datasets generated outside of ruletaker. Other theory datasets can be validated
+    or evaluated by running them through theorem provers supported in this repo by using the
+    `theory_label_generator` tool."""
 
-    def __init__(self, theory, assertion, label=None):
+    def __init__(self, theory, assertion, label=None, exception=None):
         self.theory = theory
         self.assertion = assertion
         self.label = label
+        self.exception = exception
 
     def __eq__(self, other):
         return (
@@ -421,10 +426,11 @@ class TheoryAssertionInstance:
             and self.theory == other.theory
             and self.assertion == other.assertion
             and self.label == other.label
+            and self.exception == other.exception
         )
 
     def __hash__(self):
-        return hash((self.theory, self.assertion, self.label))
+        return hash((self.theory, self.assertion, self.label, self.exception))
 
     @classmethod
     def from_json(cls, json_dict):
@@ -434,6 +440,7 @@ class TheoryAssertionInstance:
                 Theory.from_json(json_dict["theory"]),
                 Fact.from_json(json_dict["assertion"]),
                 json_dict["label"],
+                json_dict["exception"],
             )
         return None
 
@@ -443,6 +450,7 @@ class TheoryAssertionInstance:
             "theory": self.theory.to_json(),
             "assertion": self.assertion.to_json(),
             "label": self.label,
+            "exception": self.exception,
         }
 
 
@@ -589,19 +597,14 @@ class Example:
 class TheoryAssertionRepresentationWithLabel:
     """Class that represents the structure of expected input to theory_label_generator. Contains
     theory statements, which is a collection of strings, a string representing the assertion. When
-    input to theory_label_generator these statements would be logical forms in prefix notation.
-    exception: this field is only meaningful when the theory_label_generator is used to run some
-    existing theories through the theorem prover, which may have resulted in some exception."""
+    input to theory_label_generator these statements would be logical forms in prefix notation."""
 
-    def __init__(
-        self, theory_statements, assertion_statement, label=None, exception=None
-    ):
+    def __init__(self, theory_statements, assertion_statement, label=None):
         # Collection of strings
         self.theory_statements = theory_statements
         # String
         self.assertion_statement = assertion_statement
         self.label = label
-        self.exception = exception
 
     def __eq__(self, other):
         return (
@@ -609,7 +612,6 @@ class TheoryAssertionRepresentationWithLabel:
             and self.theory_statements == other.theory_statements
             and self.assertion_statement == other.assertion_statement
             and self.label == other.label
-            and self.exception == other.exception
         )
 
     def __hash__(self):
@@ -618,7 +620,6 @@ class TheoryAssertionRepresentationWithLabel:
                 self.theory_statements,
                 self.assertion_statement,
                 self.label,
-                self.exception,
             )
         )
 
@@ -630,7 +631,6 @@ class TheoryAssertionRepresentationWithLabel:
                 json_dict["theory_statements"],
                 json_dict["assertion_statement"],
                 json_dict["label"],
-                json_dict["exception"],
             )
         return None
 
@@ -640,5 +640,4 @@ class TheoryAssertionRepresentationWithLabel:
             "theory_statements": self.theory_statements,
             "assertion_statement": self.assertion_statement,
             "label": self.label,
-            "exception": self.exception,
         }

@@ -1,6 +1,13 @@
 #!/usr/bin/env python
 import argparse
-from common import Example, Fact, Rule, Theory, TheoryAssertionRepresentationWithLabel
+from common import (
+    Example,
+    Fact,
+    Rule,
+    Theory,
+    TheoryAssertionInstance,
+    TheoryAssertionRepresentationWithLabel,
+)
 import copy
 import json
 
@@ -94,20 +101,20 @@ class Metrics:
                 print(f"  No. true: {self.num_true}")
                 print(f"    No. of exceptions: {self.num_true_with_exception}")
                 print(
-                    f"     Preformance on {self.num_true - self.num_true_with_exception} examples WITHOUT exception:"
+                    f"     Performance on {self.num_true - self.num_true_with_exception} examples WITHOUT exception:"
                 )
                 print(f"       No. correct: {self.num_correct_true}")
                 print(f"       No. incorrect: {self.num_incorrect_true}")
                 print(f"  No. false: {self.num_false}")
                 print(f"    No. of exceptions: {self.num_false_with_exception}")
                 print(
-                    f"     Preformance on {self.num_false - self.num_false_with_exception} examples WITHOUT exception:"
+                    f"     Performance on {self.num_false - self.num_false_with_exception} examples WITHOUT exception:"
                 )
                 print(f"       No. correct: {self.num_correct_false}")
                 print(f"       No. incorrect: {self.num_incorrect_false}")
                 print(f"Total no. with exceptions: {total_no_of_exceptions}")
                 print(
-                    f"Performance on {self.num_examples - total_no_of_exceptions} examples WITHOUT excpetion:"
+                    f"Performance on {self.num_examples - total_no_of_exceptions} examples WITHOUT exception:"
                 )
                 print(f"   Total no. correct: {self.num_correct}")
                 print(f"   Total no. incorrect: {self.num_incorrect}")
@@ -141,7 +148,7 @@ def format_argument(arg_as_str):
     return arg_as_str
 
 
-def parse_triple_representation(triple_rep):
+def parse_legacy_triple_representation(triple_rep):
     """Function that takes string containing a triple representation in RuleTaker format and creates
     a Fact. E.g. input:
         (\"cow\" \"needs\" \"bear\" \"+\")
@@ -171,7 +178,7 @@ def parse_triple_representation(triple_rep):
     return fact
 
 
-def parse_rule_representation(rule_rep):
+def parse_legacy_rule_representation(rule_rep):
     """Function that takes string containing a rule in RuleTaker format and creates
     a Rule. E.g. input:
         (((\"something\" \"needs\" \"cow\" \"+\")) -> (\"something\" \"is\" \"red\" \"+\"))
@@ -189,10 +196,10 @@ def parse_rule_representation(rule_rep):
         lhs_parts = []
         for m in re.finditer(r"\([^()]+\)", lhs):
             lhs_part = m.group(0)
-            lhs_fact = parse_triple_representation(lhs_part)
+            lhs_fact = parse_legacy_triple_representation(lhs_part)
             if lhs_fact is not None:
                 lhs_facts.append(lhs_fact)
-        rhs_fact = parse_triple_representation(rhs)
+        rhs_fact = parse_legacy_triple_representation(rhs)
         rule = Rule(lhs_facts, rhs_fact)
         return rule
 
@@ -287,12 +294,14 @@ def run_theorem_prover(
                     or gold_label is None
                     or (engine_label is not None and (engine_label == gold_label))
                 ):
-                    instance_json["label"] = engine_label
-                    if returned_exception is not None:
-                        instance_json["exception"] = returned_exception
+                    example = Example(
+                        TheoryAssertionInstance(
+                            theory, assertion, engine_label, returned_exception
+                        )
+                    )
                     if written_row_ix > 1:
                         op.write("\n")
-                    json.dump(instance_json, op)
+                    json.dump(example.to_json(), op)
                     written_row_ix += 1
             else:
                 print(f"Unexpected input file format in line no. {row_ix}")
@@ -310,13 +319,13 @@ def run_theorem_prover(
             for triple_key in triples:
                 triple_obj = triples[triple_key]
                 triple_rep = triple_obj["representation"]
-                fact = parse_triple_representation(triple_rep)
+                fact = parse_legacy_triple_representation(triple_rep)
                 if fact is not None:
                     facts.append(fact)
             for rule_key in ip_rules:
                 rule_obj = ip_rules[rule_key]
                 rule_rep = rule_obj["representation"]
-                rule = parse_rule_representation(rule_rep)
+                rule = parse_legacy_rule_representation(rule_rep)
                 if rule is not None:
                     rules.append(rule)
             theory = Theory(facts, rules)
@@ -324,7 +333,7 @@ def run_theorem_prover(
             for question_key in questions:
                 question_obj = questions[question_key]
                 question_rep = question_obj["representation"]
-                assertion = parse_triple_representation(question_rep)
+                assertion = parse_legacy_triple_representation(question_rep)
                 gold_label = question_obj.get("answer", None)
                 (
                     engine_label,
@@ -342,22 +351,15 @@ def run_theorem_prover(
                     or gold_label is None
                     or (engine_label is not None and (engine_label == gold_label))
                 ):
-                    question_and_label = copy.deepcopy(question_obj)
-                    program = theory.program(theorem_prover, assertion)
-                    question_and_label[f"{theorem_prover}_program"] = program
-                    question_and_label[f"{theorem_prover}_label"] = engine_label
-                    if returned_exception is not None:
-                        question_and_label[
-                            f"{theorem_prover}_exception"
-                        ] = returned_exception
-                    questions_and_labels[question_key] = question_and_label
-            if len(questions_and_labels) > 0:
-                new_instance = copy.deepcopy(instance)
-                new_instance["questions"] = questions_and_labels
-                if written_row_ix > 1:
-                    op.write("\n")
-                json.dump(new_instance, op)
-                written_row_ix += 1
+                    example = Example(
+                        TheoryAssertionInstance(
+                            theory, assertion, engine_label, returned_exception
+                        )
+                    )
+                    if written_row_ix > 1:
+                        op.write("\n")
+                    json.dump(example.to_json(), op)
+                    written_row_ix += 1
     if report_metrics:
         metrics.report()
 
@@ -455,16 +457,117 @@ def main():
         }
     }
     Output jsonl format:
-    For input format 1:
-        Same as input structure `TheoryAssertionRepresentationWithLabel` with `label` field containing <true|false> as output
-        by the theorem_prover, and the `exception` field populated if the theorem prover threw an exception.
-    For input format 2:
-        The same json structureas input, EXCEPT that each question object (see Q1, Q2 etc under "questions"
-        above), will have two additional fields and an optional third one:
-            <theorem_prover>_label: e.g., `problog_label` with boolean value
-            <theorem_prover>_program: e.g., `problog_program` with text containing the logic program that was input to problog
-            <theorem_prover>_exception: e.g., `problog_exception` : optional string value field containing the name of the exception
-            if one was thrown
+    The output object will take the structure of the `Example` class.
+    Sample:
+    {   "json_class": "Example",
+        "theory_assertion_instance": {
+            "json_class": "TheoryAssertionInstance",
+            "theory": {
+                "json_class": "Theory",
+                "facts": [
+                    {   "json_class": "Fact",
+                        "polarity": "+",
+                        "predicate": "kind",
+                        "arguments": ["'Anne'"],
+                        "probability": 1.0
+                    },
+                    {   "json_class": "Fact",
+                        "polarity": "+",
+                        "predicate": "cold",
+                        "arguments": ["'Gary'"],
+                        "probability": 1.0
+                    },
+                    ...
+                ],
+                "rules": [
+                    {   "json_class": "Rule",
+                        "lhs": [
+                            {   "json_class": "Fact",
+                                "polarity": "+",
+                                "predicate": "smart",
+                                "arguments": ["X"],
+                                "probability": 1.0
+                            }
+                        ],
+                        "rhs": {
+                            "json_class": "Fact",
+                            "polarity": "+",
+                            "predicate": "smart",
+                            "arguments": ["X"],
+                            "probability": 1.0
+                        }
+                    },
+                    {   "json_class": "Rule",
+                        "lhs": [
+                            {   "json_class": "Fact",
+                                "polarity": "+",
+                                "predicate": "furry",
+                                "arguments": ["X"],
+                                "probability": 1.0
+                            },
+                            {   "json_class": "Fact",
+                                "polarity": "+",
+                                "predicate": "young",
+                                "arguments": ["X"],
+                                "probability": 1.0
+                            }
+                        ],
+                        "rhs": {
+                            "json_class": "Fact",
+                            "polarity": "+",
+                            "predicate": "round",
+                            "arguments": ["X"],
+                            "probability": 1.0
+                        }
+                    },
+                ],
+            },
+            "assertion": {
+                "json_class": "Fact",
+                "polarity": "+",
+                "predicate": "furry",
+                "arguments": ["'Gary'"],
+                "probability": 1.0
+            },
+            "label": true,
+            "exception": null
+        },
+        "logical_forms": {
+            "json_class": "TheoryAssertionRepresentation",
+            "theory_statements": [
+                "+ ( kind 'Anne' )", "+ ( cold 'Gary' )",
+                + ( red 'Erin' )", "+ ( smart 'Anne' )",
+                ...
+                "(+ ( furry X ) + ( young X )) -> + ( round X )",
+                ...
+            ]
+            "assertion_statement": "+ ( furry 'Gary' )"
+        },
+        "english": {
+            "json_class": "TheoryAssertionRepresentation",
+            "theory_statements": [
+                "Anne is kind.",
+                "Gary is cold.",
+                ...
+                "If X is furry and X is young then X is round.",
+                ...
+            ]
+           "assertion_statement": "Gary is furry."
+        },
+        "logic_program": {
+            "problog": {
+                "json_class": "TheoryAssertionRepresentation",
+                "theory_statements": [
+                    "1.0::kind('Anne').",
+                    "1.0::cold('Gary').",
+                    ...
+                    "1.0::round(X) :- furry(X), young(X).",
+                    ...
+                ]
+                "assertion_statement": "query(furry('Gary'))."
+            }
+        }
+    }
     """
     parser = argparse.ArgumentParser(
         description="Tool to run theories through a theorem prover."
