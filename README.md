@@ -210,7 +210,7 @@ Sample output:
         "1.0::smart(X) :- big(X), green(X).",
         "1.0::kind(X) :- round(X), smart(X).",
         "1.0::kind(X) :- quiet(X), round(X).",
-        "1.0::rough(X) :- round(X), red(X)."
+        "1.0::rough(X) :- round(X), red(X).",
          "1.0::kind(X) :- quiet(X).", "1.0::furry(X) :- quiet(X), big(X)."
       ],
       "assertion_statement": "query(young('Dave'))."
@@ -233,7 +233,7 @@ File in JSONL format, i.e., a JSON object per line with structure as defined by 
 {
   "theory_statements": List of theory statement logical forms in prefix notation.
   "assertion_statement": String containing the assertion in prefix notation.
-  "label": Optional Boolean label field. input object may or may not have a label (gold label) specified, to compare accuracy against. Output object will contain a boolean value as returned from the theorem prover or None if the theorem prover threw an exception.
+  "label": Optional Boolean label field. If set with value true, then the input object has a gold label specified, to compare accuracy against. Output object will contain a boolean value as returned from the theorem prover or None if the theorem prover threw an exception.
   "exception": Optional String field that is a placeholder for the output object use to report exceptions if any, from the theorem prover.
 }
 ```

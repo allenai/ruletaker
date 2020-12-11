@@ -598,7 +598,8 @@ def main():
         "--exclude-mismatches",
         action="store_true",
         default=False,
-        help="Flag that will cause examples with differing labels from gold labels if presentto be included in the output file",
+        help="If gold labels are present, then this will cause examples with labels differing from those \
+        gold labels to be included in the output file",
     )
     parser.add_argument(
         "--report-metrics",
