@@ -1,6 +1,14 @@
 #!/usr/bin/env python
 import argparse
-from common import Example, Fact, Rule, Theory, TheoryAssertionRepresentationWithLabel
+from common import (
+    Example,
+    Fact,
+    Rule,
+    Theory,
+    TheoryAssertionInstance,
+    TheoryAssertionRepresentationWithLabel,
+)
+import copy
 import json
 
 import problog
@@ -36,10 +44,8 @@ class Metrics:
         self.total_elapsed_millisecs = 0
         self.num_true_with_exception = 0
         self.num_false_with_exception = 0
-        self.num_correct_true_with_exception = 0
-        self.num_correct_false_with_exception = 0
-        self.num_incorrect_true_no_exception = 0
-        self.num_incorrect_false_no_exception = 0
+        self.num_incorrect_true = 0
+        self.num_incorrect_false = 0
         self.num_no_gold_label = 0
         self.exception_num_failures = dict()
 
@@ -64,23 +70,20 @@ class Metrics:
                     self.num_correct_true += 1
                 if engine_exception is not None:
                     self.num_true_with_exception += 1
-                    if engine_label:
-                        self.num_correct_true_with_exception += 1
                 else:
                     if not engine_label:
-                        self.num_incorrect_true_no_exception += 1
+                        self.num_incorrect_true += 1
             else:
                 self.num_false += 1
-                if not engine_label:
+                if engine_label is not None and not engine_label:
                     self.num_correct_false += 1
                 if engine_exception is not None:
                     self.num_false_with_exception += 1
-                    if not engine_label:
-                        self.num_correct_false_with_exception += 1
                 else:
                     if engine_label:
-                        self.num_incorrect_false_no_exception += 1
+                        self.num_incorrect_false += 1
             self.num_correct = self.num_correct_true + self.num_correct_false
+            self.num_incorrect = self.num_incorrect_true + self.num_incorrect_false
 
     def report(self):
         """Report summarizing the overall accuracy, and breakdown by True and False (gold)
@@ -96,26 +99,32 @@ class Metrics:
                     self.num_true_with_exception + self.num_false_with_exception
                 )
                 print(f"  No. true: {self.num_true}")
-                print(f"    No. correct: {self.num_correct_true}")
                 print(f"    No. of exceptions: {self.num_true_with_exception}")
                 print(
-                    f"        No. correct with exceptions: {self.num_correct_true_with_exception}"
+                    f"     Performance on {self.num_true - self.num_true_with_exception} examples WITHOUT exception:"
                 )
-                print(
-                    f"    No. incorrect without exception: {self.num_incorrect_true_no_exception}"
-                )
+                print(f"       No. correct: {self.num_correct_true}")
+                print(f"       No. incorrect: {self.num_incorrect_true}")
                 print(f"  No. false: {self.num_false}")
-                print(f"    No. correct: {self.num_correct_false}")
                 print(f"    No. of exceptions: {self.num_false_with_exception}")
                 print(
-                    f"        No. correct with exceptions: {self.num_correct_false_with_exception}"
+                    f"     Performance on {self.num_false - self.num_false_with_exception} examples WITHOUT exception:"
+                )
+                print(f"       No. correct: {self.num_correct_false}")
+                print(f"       No. incorrect: {self.num_incorrect_false}")
+                print(f"Total no. with exceptions: {total_no_of_exceptions}")
+                print(
+                    f"Performance on {self.num_examples - total_no_of_exceptions} examples WITHOUT exception:"
+                )
+                print(f"   Total no. correct: {self.num_correct}")
+                print(f"   Total no. incorrect: {self.num_incorrect}")
+                print(
+                    "Accuracy (no exception examples): "
+                    + f"{(self.num_correct * 100.0) / (self.num_examples - total_no_of_exceptions)}"
                 )
                 print(
-                    f"    No. incorrect without exception: {self.num_incorrect_false_no_exception}"
+                    f"Accuracy (total): {(self.num_correct * 100.0) / self.num_examples}"
                 )
-                print(f"Total no. correct: {self.num_correct}")
-                print(f"Total no. with exceptions: {total_no_of_exceptions}")
-                print(f"Accuracy: {(self.num_correct * 100.0) / self.num_examples}")
                 if total_no_of_exceptions > 0:
                     print("\nFailure Breakdown by Exception:")
                     for exception in self.exception_num_failures:
@@ -139,7 +148,7 @@ def format_argument(arg_as_str):
     return arg_as_str
 
 
-def parse_triple_representation(triple_rep):
+def parse_legacy_triple_representation(triple_rep):
     """Function that takes string containing a triple representation in RuleTaker format and creates
     a Fact. E.g. input:
         (\"cow\" \"needs\" \"bear\" \"+\")
@@ -169,7 +178,7 @@ def parse_triple_representation(triple_rep):
     return fact
 
 
-def parse_rule_representation(rule_rep):
+def parse_legacy_rule_representation(rule_rep):
     """Function that takes string containing a rule in RuleTaker format and creates
     a Rule. E.g. input:
         (((\"something\" \"needs\" \"cow\" \"+\")) -> (\"something\" \"is\" \"red\" \"+\"))
@@ -187,10 +196,10 @@ def parse_rule_representation(rule_rep):
         lhs_parts = []
         for m in re.finditer(r"\([^()]+\)", lhs):
             lhs_part = m.group(0)
-            lhs_fact = parse_triple_representation(lhs_part)
+            lhs_fact = parse_legacy_triple_representation(lhs_part)
             if lhs_fact is not None:
                 lhs_facts.append(lhs_fact)
-        rhs_fact = parse_triple_representation(rhs)
+        rhs_fact = parse_legacy_triple_representation(rhs)
         rule = Rule(lhs_facts, rhs_fact)
         return rule
 
@@ -226,7 +235,7 @@ def call_theorem_prover(
             end_millisecs = current_milli_time()
             elapsed_millisecs = end_millisecs - start_millisecs
             result_tuples = [(k, v) for k, v in result.items()]
-            obtained_result = result_tuples[0][1] != 0.0
+            obtained_result = result_tuples[0][1] != float(0)
             return obtained_result, elapsed_millisecs, None
         except (NegativeCycle, NonGroundProbabilisticClause, UnknownClause) as e:
             end_millisecs = current_milli_time()
@@ -234,20 +243,22 @@ def call_theorem_prover(
             print(
                 f"!!!Encountered Exception at instance id {instance_id}, question id {question_id}: {e}"
             )
-            obtained_result = assertion.polarity != "+"
             exception_name = str(type(e)).lstrip("<class '").rstrip("'>")
-            return obtained_result, elapsed_millisecs, exception_name
+            return None, elapsed_millisecs, exception_name
     return obtained_result, elapsed_millisecs, None
 
 
-def run_theorem_prover(theorem_prover, ip, ip_format, op, report_metrics):
+def run_theorem_prover(
+    theorem_prover, ip, ip_format, op, exclude_mismatches, report_metrics
+):
     """Function that takes an input file, calls the theorem prover on every example and gets a label.
     Results are written to output file. Metrics are tracked and reported if report_metrics is True.
     """
     metrics = Metrics()
     if ip_format == "current":
         row_ix = 1
-        for ix, line in enumerate(ip.readlines()):
+        written_row_ix = 1
+        for line in ip.readlines():
             facts = []
             rules = []
             instance_json = json.loads(line)
@@ -278,14 +289,26 @@ def run_theorem_prover(theorem_prover, ip, ip_format, op, report_metrics):
                     metrics.update(
                         gold_label, engine_label, returned_exception, elapsed_millisecs
                     )
-                instance_json["label"] = engine_label
-                json.dump(instance_json, op)
-                op.write("\n")
+                if (
+                    not exclude_mismatches
+                    or gold_label is None
+                    or (engine_label is not None and (engine_label == gold_label))
+                ):
+                    example = Example(
+                        TheoryAssertionInstance(
+                            theory, assertion, engine_label, returned_exception
+                        )
+                    )
+                    if written_row_ix > 1:
+                        op.write("\n")
+                    json.dump(example.to_json(), op)
+                    written_row_ix += 1
             else:
                 print(f"Unexpected input file format in line no. {row_ix}")
             row_ix += 1
     else:
         # Ruletaker Legacy Jsonl Format
+        written_row_ix = 1
         for ix, line in enumerate(ip.readlines()):
             facts = []
             rules = []
@@ -296,20 +319,21 @@ def run_theorem_prover(theorem_prover, ip, ip_format, op, report_metrics):
             for triple_key in triples:
                 triple_obj = triples[triple_key]
                 triple_rep = triple_obj["representation"]
-                fact = parse_triple_representation(triple_rep)
+                fact = parse_legacy_triple_representation(triple_rep)
                 if fact is not None:
                     facts.append(fact)
             for rule_key in ip_rules:
                 rule_obj = ip_rules[rule_key]
                 rule_rep = rule_obj["representation"]
-                rule = parse_rule_representation(rule_rep)
+                rule = parse_legacy_rule_representation(rule_rep)
                 if rule is not None:
                     rules.append(rule)
             theory = Theory(facts, rules)
+            questions_and_labels = {}
             for question_key in questions:
                 question_obj = questions[question_key]
                 question_rep = question_obj["representation"]
-                assertion = parse_triple_representation(question_rep)
+                assertion = parse_legacy_triple_representation(question_rep)
                 gold_label = question_obj.get("answer", None)
                 (
                     engine_label,
@@ -322,12 +346,20 @@ def run_theorem_prover(theorem_prover, ip, ip_format, op, report_metrics):
                     metrics.update(
                         gold_label, engine_label, returned_exception, elapsed_millisecs
                     )
-                op_obj = {
-                    **instance,
-                    **({f"{theorem_prover}_label": engine_label}),
-                }
-                json.dump(op_obj, op)
-                op.write("\n")
+                if (
+                    not exclude_mismatches
+                    or gold_label is None
+                    or (engine_label is not None and (engine_label == gold_label))
+                ):
+                    example = Example(
+                        TheoryAssertionInstance(
+                            theory, assertion, engine_label, returned_exception
+                        )
+                    )
+                    if written_row_ix > 1:
+                        op.write("\n")
+                    json.dump(example.to_json(), op)
+                    written_row_ix += 1
     if report_metrics:
         metrics.report()
 
@@ -335,24 +367,33 @@ def run_theorem_prover(theorem_prover, ip, ip_format, op, report_metrics):
 def main():
     """Tool that takes a collection of theory-assertion examples and runs them through a theorem prover.
     Supported input format 1:  Jsonl format with json objects represented as per the
-    `TheoryAssertionRepresentationWithLabel` class.
+    `TheoryAssertionRepresentationWithLabel` class where the `theory_statements` field contains the
+    statements in our prefix notation as logical forms.
     Sample:
-    {   "json_class": "TheoryAssertionRepresentation",
+    {   "json_class": "TheoryAssertionRepresentationWithLabel",
         "theory_statements": [
-            "1.0::kind('Fiona').",
-            "1.0::rough('Dave').",
-            "1.0::smart('Dave').",
-            "1.0::quiet('Charlie').",
-            "1.0::kind('Dave').",
-            "1.0::white('Erin').",
-            "1.0::young(X) :- white(X).",
-            "1.0::smart(X) :- big(X), green(X).",
-            "1.0::kind(X) :- round(X), smart(X).",
-            "1.0::kind(X) :- quiet(X), round(X).",
-            "1.0::rough(X) :- round(X), red(X)."
-            "1.0::kind(X) :- quiet(X).", "1.0::furry(X) :- quiet(X), big(X)."
+            "+ ( smart 'Gary' )",
+            "+ ( kind 'Fiona' )",
+            "+ ( blue 'Harry' )",
+            "+ ( quiet 'Erin' )",
+            "+ ( red 'Charlie' )",
+            "[ + ( red X ) ] -> + ( nice X )",
+            "+ ( white 'Gary' )",
+            "+ ( young 'Fiona' )",
+            "+ ( big 'Charlie' )",
+            "[ + ( green X ) ] -> + ( kind X )",
+            "+ ( young 'Erin' )",
+            "+ ( quiet 'Dave' )",
+            "+ ( big 'Gary' )",
+            "+ ( smart 'Anne' )",
+            "+ ( green 'Anne' )",
+            "+ ( cold 'Bob' )",
+            "[ + ( round X ) , + ( big X ) ] -> + ( white X )",
+            "+ ( furry 'Anne' )", "+ ( red 'Harry' )"
         ],
-        "assertion_statement": "query(1.0::young('Dave').)."
+        "assertion_statement": "+ ( cold 'Dave' )"},
+        "label": false,
+        "exception": None
     }
     Supported input format 2: Ruletaker's legacy Jsonl format (for AI2's internal use with existing RuleTaker datasets)
     Sample (there are additional fields not relevant and not shown here):
@@ -415,7 +456,118 @@ def main():
             }
         }
     }
-    Output jsonl format: Same as above with an additional field "problog_label": <true|false>.
+    Output jsonl format:
+    The output object will take the structure of the `Example` class.
+    Sample:
+    {   "json_class": "Example",
+        "theory_assertion_instance": {
+            "json_class": "TheoryAssertionInstance",
+            "theory": {
+                "json_class": "Theory",
+                "facts": [
+                    {   "json_class": "Fact",
+                        "polarity": "+",
+                        "predicate": "kind",
+                        "arguments": ["'Anne'"],
+                        "probability": 1.0
+                    },
+                    {   "json_class": "Fact",
+                        "polarity": "+",
+                        "predicate": "cold",
+                        "arguments": ["'Gary'"],
+                        "probability": 1.0
+                    },
+                    ...
+                ],
+                "rules": [
+                    {   "json_class": "Rule",
+                        "lhs": [
+                            {   "json_class": "Fact",
+                                "polarity": "+",
+                                "predicate": "smart",
+                                "arguments": ["X"],
+                                "probability": 1.0
+                            }
+                        ],
+                        "rhs": {
+                            "json_class": "Fact",
+                            "polarity": "+",
+                            "predicate": "smart",
+                            "arguments": ["X"],
+                            "probability": 1.0
+                        }
+                    },
+                    {   "json_class": "Rule",
+                        "lhs": [
+                            {   "json_class": "Fact",
+                                "polarity": "+",
+                                "predicate": "furry",
+                                "arguments": ["X"],
+                                "probability": 1.0
+                            },
+                            {   "json_class": "Fact",
+                                "polarity": "+",
+                                "predicate": "young",
+                                "arguments": ["X"],
+                                "probability": 1.0
+                            }
+                        ],
+                        "rhs": {
+                            "json_class": "Fact",
+                            "polarity": "+",
+                            "predicate": "round",
+                            "arguments": ["X"],
+                            "probability": 1.0
+                        }
+                    },
+                ],
+            },
+            "assertion": {
+                "json_class": "Fact",
+                "polarity": "+",
+                "predicate": "furry",
+                "arguments": ["'Gary'"],
+                "probability": 1.0
+            },
+            "label": true,
+            "exception": null
+        },
+        "logical_forms": {
+            "json_class": "TheoryAssertionRepresentation",
+            "theory_statements": [
+                "+ ( kind 'Anne' )", "+ ( cold 'Gary' )",
+                + ( red 'Erin' )", "+ ( smart 'Anne' )",
+                ...
+                "(+ ( furry X ) + ( young X )) -> + ( round X )",
+                ...
+            ]
+            "assertion_statement": "+ ( furry 'Gary' )"
+        },
+        "english": {
+            "json_class": "TheoryAssertionRepresentation",
+            "theory_statements": [
+                "Anne is kind.",
+                "Gary is cold.",
+                ...
+                "If X is furry and X is young then X is round.",
+                ...
+            ]
+           "assertion_statement": "Gary is furry."
+        },
+        "logic_program": {
+            "problog": {
+                "json_class": "TheoryAssertionRepresentation",
+                "theory_statements": [
+                    "1.0::kind('Anne').",
+                    "1.0::cold('Gary').",
+                    ...
+                    "1.0::round(X) :- furry(X), young(X).",
+                    ...
+                ]
+                "assertion_statement": "query(furry('Gary'))."
+            }
+        }
+    }
     """
     parser = argparse.ArgumentParser(
         description="Tool to run theories through a theorem prover."
@@ -443,15 +595,26 @@ def main():
         Output format will be the same as input format, so this will be either a CSV or a jsonl file.",
     )
     parser.add_argument(
+        "--exclude-mismatches",
+        action="store_true",
+        default=False,
+        help="If gold labels are present, then this will cause examples with labels differing from those \
+        gold labels to be included in the output file",
+    )
+    parser.add_argument(
         "--report-metrics",
         action="store_true",
         help="Flag that will cause metrics (accuracy against gold labels) to be tracked and reported",
     )
     args = parser.parse_args()
-
     with open(args.input_file, "r") as ip, open(args.output_file, "w") as op:
         run_theorem_prover(
-            args.theorem_prover, ip, args.input_format, op, args.report_metrics
+            args.theorem_prover,
+            ip,
+            args.input_format,
+            op,
+            args.exclude_mismatches,
+            args.report_metrics,
         )
 
 

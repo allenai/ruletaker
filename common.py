@@ -41,7 +41,7 @@ class Fact:
     def __lt__(self, other):
         return isinstance(other, Fact) and (
             repr(self) < repr(other)
-            or (repr(self) == repr(other) and self.probability < other.probability)
+            or (repr(self) == repr(other) and (self.probability < other.probability))
         )
 
     def __hash__(self):
@@ -408,12 +408,17 @@ class Theory:
 
 class TheoryAssertionInstance:
     """Class representing a theory-assertion pair instance to be input to a model.
-    Consists a gold truth label for the assertion's truthiness with respect to the theory."""
+    Consists a gold truth label for the assertion's truthiness with respect to the theory.
+    The `exception` field is a placeholder to store any exceptions thrown by the theorem prover
+    on existing theory datasets generated outside of ruletaker. Other theory datasets can be validated
+    or evaluated by running them through theorem provers supported in this repo by using the
+    `theory_label_generator` tool."""
 
-    def __init__(self, theory, assertion, label=None):
+    def __init__(self, theory, assertion, label=None, exception=None):
         self.theory = theory
         self.assertion = assertion
         self.label = label
+        self.exception = exception
 
     def __eq__(self, other):
         return (
@@ -421,10 +426,11 @@ class TheoryAssertionInstance:
             and self.theory == other.theory
             and self.assertion == other.assertion
             and self.label == other.label
+            and self.exception == other.exception
         )
 
     def __hash__(self):
-        return hash((self.theory, self.assertion, self.label))
+        return hash((self.theory, self.assertion, self.label, self.exception))
 
     @classmethod
     def from_json(cls, json_dict):
@@ -434,6 +440,7 @@ class TheoryAssertionInstance:
                 Theory.from_json(json_dict["theory"]),
                 Fact.from_json(json_dict["assertion"]),
                 json_dict["label"],
+                json_dict["exception"],
             )
         return None
 
@@ -443,6 +450,7 @@ class TheoryAssertionInstance:
             "theory": self.theory.to_json(),
             "assertion": self.assertion.to_json(),
             "label": self.label,
+            "exception": self.exception,
         }
 
 
@@ -607,7 +615,13 @@ class TheoryAssertionRepresentationWithLabel:
         )
 
     def __hash__(self):
-        return hash((self.theory_statements, self.assertion_statement, self.label))
+        return hash(
+            (
+                self.theory_statements,
+                self.assertion_statement,
+                self.label,
+            )
+        )
 
     @classmethod
     def from_json(cls, json_dict):
