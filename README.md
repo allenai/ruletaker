@@ -96,10 +96,13 @@ The theory generator needs to meaningfully associate the grammar nonterminals wi
     } 
   },
   "assertion": {
-    # The assertion to prove, given the theory. Each example in the dataset contains: a theory, an assertion,
-    # and a label obtained by running the theory through a theorem proving engine.
+    # Each example in the dataset contains: a theory, an assertion to prove given the theory,
+    # and a label obtained by running the theory through a theorem proving engine. This specifies
+    # the grammar nonterminal that maps to an assertion statement.
     "start_symbol": "Fact"
-  }
+  },
+  # Prefix to use while generating ids for examples in the dataset.
+  "example_id_prefix": "ruletaker-problog"
 }
 ```
 

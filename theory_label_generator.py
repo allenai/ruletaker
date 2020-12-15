@@ -6,6 +6,7 @@ from common import (
     Rule,
     Theory,
     TheoryAssertionInstance,
+    TheoryAssertionRepresentation,
     TheoryAssertionRepresentationWithLabel,
 )
 import copy
@@ -295,9 +296,10 @@ def run_theorem_prover(
                     or (engine_label is not None and (engine_label == gold_label))
                 ):
                     example = Example(
+                        instance.id,
                         TheoryAssertionInstance(
                             theory, assertion, engine_label, returned_exception
-                        )
+                        ),
                     )
                     if written_row_ix > 1:
                         op.write("\n")
@@ -313,25 +315,32 @@ def run_theorem_prover(
             facts = []
             rules = []
             instance = json.loads(line)
+            legacy_instance_id = instance["id"]
             triples = instance["triples"]
             ip_rules = instance.get("rules", [])
             questions = instance["questions"]
+            theory_nl_statements = []
             for triple_key in triples:
                 triple_obj = triples[triple_key]
+                theory_nl_statements.append(triple_obj["text"])
                 triple_rep = triple_obj["representation"]
                 fact = parse_legacy_triple_representation(triple_rep)
                 if fact is not None:
                     facts.append(fact)
             for rule_key in ip_rules:
                 rule_obj = ip_rules[rule_key]
+                theory_nl_statements.append(rule_obj["text"])
                 rule_rep = rule_obj["representation"]
                 rule = parse_legacy_rule_representation(rule_rep)
                 if rule is not None:
                     rules.append(rule)
             theory = Theory(facts, rules)
+            theory_nl = " ".join(theory_nl_statements)
             questions_and_labels = {}
+            question_ix = 0
             for question_key in questions:
                 question_obj = questions[question_key]
+                question_nl = question_obj["question"]
                 question_rep = question_obj["representation"]
                 assertion = parse_legacy_triple_representation(question_rep)
                 gold_label = question_obj.get("answer", None)
@@ -351,10 +360,17 @@ def run_theorem_prover(
                     or gold_label is None
                     or (engine_label is not None and (engine_label == gold_label))
                 ):
+                    question_ix += 1
+                    # Create Example. Override NL with existing NL instead of regenerating.
+                    nl_representation = TheoryAssertionRepresentation(
+                        theory_nl_statements, question_nl
+                    )
                     example = Example(
+                        f"{legacy_instance_id}_{str(question_ix)}",
                         TheoryAssertionInstance(
                             theory, assertion, engine_label, returned_exception
-                        )
+                        ),
+                        english=nl_representation,
                     )
                     if written_row_ix > 1:
                         op.write("\n")

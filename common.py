@@ -113,7 +113,8 @@ class Fact:
             arg2 = format_argument_as_nl(self.arguments[1])
             fact_nl = f"{arg1} {self.predicate} {arg2}"
         if len(fact_nl) > 0:
-            if self.polarity != "+":
+            negate = not ((self.polarity == "+") != (self.probability == float(0)))
+            if negate:
                 fact_nl = f"it is not true that {fact_nl}"
             if standalone:
                 fact_nl += "."
@@ -207,7 +208,10 @@ class Rule:
         lhs_nl_statements = [f.nl(standalone=False) for f in self.lhs]
         lhs_nl = " and ".join(lhs_nl_statements)
         rhs_nl = self.rhs.nl(standalone=False)
-        nl = f"If {lhs_nl} then {rhs_nl}."
+        if self.probability != float(0):
+            nl = f"If {lhs_nl} then {rhs_nl}."
+        else:
+            nl = f"If {lhs_nl} then it is not true that {rhs_nl}."
         return nl
 
 
@@ -286,7 +290,7 @@ class Theory:
 
     def handle_unknown_clauses(self):
         """Preprocess theory to avoid UnknownClause errors arising from rule antecedants containing
-        lauses (Facts) that are not defined in the theory (a problem that arises with Problog).
+        clauses (Facts) that are not defined in the theory (a problem that arises with Problog).
         This is done by adding dummy facts for the missing clauses."""
 
         def create_fact(predicate, arguments_in_theory, num_arguments, polarity):
@@ -501,11 +505,13 @@ class Example:
 
     def __init__(
         self,
+        id,
         theory_assertion_instance,
         logical_forms=None,
         english=None,
         logic_program=None,
     ):
+        self.id = id
         self.theory_assertion_instance = theory_assertion_instance
         if logical_forms is not None:
             self.logical_forms = logical_forms
@@ -546,6 +552,7 @@ class Example:
     def __eq__(self, other):
         return (
             isinstance(other, Example)
+            and self.id == other.id
             and self.theory_assertion_instance == other.theory_assertion_instance
             and self.logical_forms == other.logical_forms
             and self.english == other.english
@@ -555,6 +562,7 @@ class Example:
     def __hash__(self):
         return hash(
             (
+                self.id,
                 self.theory_assertion_instance,
                 self.logical_forms,
                 self.english,
@@ -572,6 +580,7 @@ class Example:
                     json_dict["logic_program"][k]
                 )
             return Example(
+                json_dict["id"],
                 TheoryAssertionInstance.from_json(
                     json_dict["theory_assertion_instance"]
                 ),
@@ -587,6 +596,7 @@ class Example:
             logic_program[k] = self.logic_program[k].to_json()
         return {
             "json_class": "Example",
+            "id": self.id,
             "theory_assertion_instance": self.theory_assertion_instance.to_json(),
             "logical_forms": self.logical_forms.to_json(),
             "english": self.english.to_json(),
@@ -599,7 +609,9 @@ class TheoryAssertionRepresentationWithLabel:
     theory statements, which is a collection of strings, a string representing the assertion. When
     input to theory_label_generator these statements would be logical forms in prefix notation."""
 
-    def __init__(self, theory_statements, assertion_statement, label=None):
+    def __init__(self, id, theory_statements, assertion_statement, label=None):
+        # String
+        self.id = id
         # Collection of strings
         self.theory_statements = theory_statements
         # String
@@ -609,6 +621,7 @@ class TheoryAssertionRepresentationWithLabel:
     def __eq__(self, other):
         return (
             isinstance(other, TheoryAssertionRepresentationWithLabel)
+            and self.id == other.id
             and self.theory_statements == other.theory_statements
             and self.assertion_statement == other.assertion_statement
             and self.label == other.label
@@ -617,6 +630,7 @@ class TheoryAssertionRepresentationWithLabel:
     def __hash__(self):
         return hash(
             (
+                self.id,
                 self.theory_statements,
                 self.assertion_statement,
                 self.label,
@@ -628,6 +642,7 @@ class TheoryAssertionRepresentationWithLabel:
         json_class = json_dict.get("json_class")
         if json_class == "TheoryAssertionRepresentationWithLabel":
             return TheoryAssertionRepresentationWithLabel(
+                json_dict["id"],
                 json_dict["theory_statements"],
                 json_dict["assertion_statement"],
                 json_dict["label"],
@@ -637,6 +652,7 @@ class TheoryAssertionRepresentationWithLabel:
     def to_json(self):
         return {
             "json_class": "TheoryAssertionRepresentationWithLabel",
+            "id": self.id,
             "theory_statements": self.theory_statements,
             "assertion_statement": self.assertion_statement,
             "label": self.label,

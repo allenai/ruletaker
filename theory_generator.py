@@ -1,13 +1,6 @@
 import argparse
 import common
-from common import (
-    Example,
-    Fact,
-    Rule,
-    Theory,
-    TheoryAssertionInstance,
-    TheoryAssertionRepresentationWithLabel,
-)
+from common import Example, Fact, Rule, Theory, TheoryAssertionInstance
 import json
 
 import nltk
@@ -32,7 +25,7 @@ from utils import parse_fact, parse_rule
 
 class TheoremProverConfig:
     """Config for the theory generation, read from a json input config file.
-    Sample config:
+    Sample theory config:
     {
         "theory": {
             "num_examples": 200,
@@ -52,9 +45,6 @@ class TheoremProverConfig:
                 "variable_nonterminals": ["Variable"],
                 "constant_nonterminals": ["Entity"]
             }
-        },
-        "assertion": {
-            "start_symbol": "Fact"
         }
     }
     """
@@ -183,6 +173,8 @@ def get_truth_label(theory, assertion, theorem_prover_config, theorem_prover):
 
 
 def generate_random_example(
+    example_id,
+    example_id_prefix,
     grammar,
     theorem_prover_config,
     statement_types,
@@ -303,7 +295,12 @@ def generate_random_example(
 
         if label is not None:
             # Construct example with label
-            example = Example(TheoryAssertionInstance(theory, assertion, label))
+            example_id = str(example_id)
+            if len(example_id_prefix) > 0:
+                example_id = f"{example_id_prefix}-{example_id}"
+            example = Example(
+                example_id, TheoryAssertionInstance(theory, assertion, label)
+            )
 
     return example
 
@@ -327,6 +324,7 @@ def generate_theory(
     num_examples = config["theory"]["num_examples"]
     statement_types = config["theory"]["statement_types_per_example"]
     assertion_start_symbol = config["assertion"]["start_symbol"]
+    example_id_prefix = config.get("example_id_prefix", "")
 
     # Generate examples for every required type of statement (Start Symbol type)
     num_true_labels = 0
@@ -336,6 +334,8 @@ def generate_theory(
     progress_tracker.set_description(desc="Generating Examples...")
     while curr_num_examples < num_examples:
         example = generate_random_example(
+            curr_num_examples + 1,
+            example_id_prefix,
             grammar,
             theorem_prover_config,
             statement_types,

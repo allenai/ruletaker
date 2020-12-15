@@ -19,5 +19,6 @@
   },
   "assertion": {
     "start_symbol": "Fact"
-  }
+  },
+  "example_id_prefix": "ruletaker-problog"
 }
