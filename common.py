@@ -171,12 +171,15 @@ class Rule:
         json_class = json_dict.get("json_class")
         if json_class == "Rule":
             lhs_facts = [Fact.from_json(fact) for fact in json_dict["lhs"]]
-            return Rule(lhs_facts, Fact.from_json(json_dict["rhs"]))
+            return Rule(lhs_facts, Fact.from_json(json_dict["rhs"]), json_dict["probability"])
         return None
 
     def to_json(self):
         lhs_facts = [fact.to_json() for fact in self.lhs]
-        return {"json_class": "Rule", "lhs": lhs_facts, "rhs": self.rhs.to_json()}
+        return {"json_class": "Rule", \
+            "lhs": lhs_facts, \
+            "rhs": self.rhs.to_json(), \
+            "probability": self.probability}
 
     def constants(self):
         facts = self.lhs + [self.rhs]
