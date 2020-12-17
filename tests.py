@@ -20,6 +20,7 @@ def create_example_object():
         Rule(
             lhs=[Fact(polarity="+", predicate="green", arguments=["X"])],
             rhs=Fact(polarity="+", predicate="big", arguments=["X"]),
+            prob=1.0
         )
     ]
     theory = Theory(facts=[fact1, fact2, fact3], rules=rules)
