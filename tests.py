@@ -50,6 +50,7 @@ def create_example_object():
             fact_lfs + rule_lfs, assertion_lf
         )
     return Example(
+        str(1),
         theory_assertion_instance=theory_assertion_instance,
         logical_forms=logical_forms,
         english=english,
