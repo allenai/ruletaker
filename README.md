@@ -10,9 +10,9 @@ For any features you might want, or issues, we welcome your pull requests! You c
 
 ## About this release
 
-The original RuleTaker theory generator and inference engine were written in Lisp. This repository is a more stable and re-engineered Python version of that original software. The theory generator here uses a declarative grammar that users can modify to generate different theories with different distributions. For the inference engine, we here use ProbLog, with probabilities 1 and 0 to denote T and F. The ProbLog reasoner generates identical results to the original Lisp inference engine, with one exception: The original RuleTaker datasets accidentally included a few non-stratified, inconsistent theories (for theories with negation). For these, the ProbLog reasoner (correctly) throws an error. We will be releasing the Problog-syntax version of the original RuleTaker theories shortly.
+The original RuleTaker theory generator and inference engine were written in Lisp. This repository is a more stable and re-engineered Python version of that original software. The theory generator here uses a declarative grammar that users can modify to generate different theories with different distributions. For the inference engine, we here use Problog, with probabilities 1 and 0 to denote T and F. The Problog reasoner generates identical results to the original Lisp inference engine, with one exception: The original RuleTaker datasets accidentally included a few non-stratified, inconsistent theories (for theories with negation). For these, the Problog reasoner (correctly) throws an error. We will be releasing the Problog-syntax version of the original RuleTaker theories shortly.
 
-In addition, when ProbLog proves a queried fact, it also returns an SLD tree containing the proof. However, this initial release does not use those SLD trees, thus this software does not return a proof nor proof depth for the query assertions that ProbLog is able to prove.
+In addition, when Problog proves a queried fact, it also returns an SLD tree containing the proof. However, this initial release does not use those SLD trees, thus this software does not return a proof nor proof depth for the query assertions that Problog is able to prove.
 
 
 ## Theory Generator
