@@ -8,6 +8,10 @@ It uses [Problog](https://problog.readthedocs.io/en/latest/) as the theorem-prov
 
 For any features you might want, or issues, we welcome your pull requests! You can also file issues in this GitHub repository.
 
+## Dataset
+
+The latest dataset is available for download from the [allenai dataset page](https://allenai.org/data/ruletaker).
+
 ## About this release
 
 The original RuleTaker theory generator and inference engine were written in Lisp. This repository is a more stable and re-engineered Python version of that original software. The theory generator here uses a declarative grammar that users can modify to generate different theories with different distributions. For the inference engine, we here use Problog, with probabilities 1 and 0 to denote T and F. The Problog reasoner generates identical results to the original Lisp inference engine, with one exception: The original RuleTaker datasets accidentally included a few non-stratified, inconsistent theories (for theories with negation). For these, the Problog reasoner (correctly) throws an error. We will be releasing the Problog-syntax version of the original RuleTaker theories shortly.
