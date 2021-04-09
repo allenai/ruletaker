@@ -144,10 +144,69 @@ def generate_random_statement(grammar, nonterminal, theorem_prover_config):
     return sentence
 
 
+def get_min_proof_depth(source_id, node_id_map, curr_depth):
+    """Get the depth of the minimum-depth proof."""
+    # Does a depth-first traversal as children are found, incrementing the depth if a conjunctive
+    # node is found, i.e., two nodes are being combined.
+    # If the node with children is a conjunction (indicates chaining), returns the maximum depth
+    # of the paths from each of the children.
+    # It it is a disjunction (indicates alternate proof paths), returns the minimum depth of the
+    # paths from each of the children.
+    if source_id not in node_id_map:
+        return curr_depth
+    node = node_id_map.get(source_id, None)
+    if isinstance(node, problog.formula.atom):
+        return curr_depth
+    if isinstance(node, problog.formula.conj):
+        curr_depth += 1
+    depths_at_children = []
+    for child_id in node.children:
+        child_node = node_id_map.get(child_id, None)
+        depths_at_children.append(
+            get_min_proof_depth(child_id, node_id_map, curr_depth)
+        )
+    if isinstance(node, problog.formula.conj):
+        return max(depths_at_children)
+    return min(depths_at_children)
+
+
+def get_proof_depth(sdd):
+    """Walk the returned SDD structure from ProbLog to get an integer representing the depth
+    of the proof."""
+
+    # Extract the queried assertion in the example.
+    # We assume a single query per sdd as that is how we are generating examples.
+    # Example of what a query looks like: (is_young(erin), 7).
+    # This is a tuple containing the name of the node in the proof tree representing
+    # the assertion, and its id.
+    queries = list(sdd.queries())
+    query = queries[0]
+    query_node_id = query[1]
+
+    # Construct a map of node ids to node objects for lookup during traversal.
+    # Example of a map that can be built:
+    # {  1: atom(identifier=0, probability=1.0, group=None, name=is_white(erin), source=None),
+    #    2: atom(identifier=(6, (erin,) {{}}, 0), probability=1.0, group=(6, (erin,) {{}}),
+    #       name=choice(6,0,is_young(erin),erin), source=None),
+    #    3: conj(children=(1, 2), name=None),
+    #    4: atom(identifier=2, probability=1.0, group=None, name=is_small(erin), source=None),
+    #    5: atom(identifier=(14, (erin,) {{}}, 0), probability=1.0, group=(14, (erin,) {{}}),
+    #       name=choice(14,0,is_young(erin),erin), source=None),
+    #    6: conj(children=(4, 5), name=None),
+    #    7: disj(children=(3, 6), name=is_young(erin))
+    # }
+    node_ids_and_nodes = [(node_id, node) for node_id, node, _ in iter(sdd)]
+    node_id_map = dict(node_ids_and_nodes)
+
+    min_proof_depth = get_min_proof_depth(query_node_id, node_id_map, 0)
+    return min_proof_depth
+
+
 def run_theory_in_problog(theory, assertion):
     """Run the given theory and assertion through ProbLog engine to obtain a True/False label.
     If an exception is encountered, return None so that this example will not be part of output."""
     theorem_prover = "problog"
+    sdd = None
     try:
         program = theory.program(theorem_prover, assertion)
         lf = LogicFormula.create_from(program)  # ground the program
@@ -156,20 +215,47 @@ def run_theory_in_problog(theory, assertion):
         result = sdd.evaluate()
         result_tuples = [(k, v) for k, v in result.items()]
         if len(result_tuples) == 0:
-            return False
-        return result_tuples[0][1] != 0.0
+            label = False
+        else:
+            label = result_tuples[0][1] != 0.0
+        return (label, sdd)
     except (NegativeCycle, NonGroundProbabilisticClause, UnknownClause) as e:
-        return None
-    return None
+        return (None, sdd)
 
 
-def get_truth_label(theory, assertion, theorem_prover_config, theorem_prover):
+def get_truth_label_proof_and_proof_depth(
+    theory, assertion, theorem_prover_config, theorem_prover
+):
     """Get a truth label for a given theory and assertion by running it through
     specified theorem prover."""
-    label = None
+    label, proof_depth, proof = None, None, None
     if theorem_prover.lower() == "problog":
-        label = run_theory_in_problog(theory, assertion)
-    return label
+        label, sdd = run_theory_in_problog(theory, assertion)
+        if label is not None and sdd is not None:
+            proof_depth = get_proof_depth(sdd)
+            # The SDD object's string representation looks something like this:
+            # 1: atom(identifier=14, probability=1.0, group=None, name=big('Erin'), source=None)
+            # 2: atom(identifier=(34, ('Erin',) {{}}, 0), probability=1.0, group=(34, ('Erin',) {{}}), name=choice(34,0,cold('Erin'),'Erin'), source=None)
+            # 3: conj(children=(1, 2), name=None)
+            # 4: atom(identifier=(42, ('Erin',) {{}}, 0), probability=1.0, group=(42, ('Erin',) {{}}), name=choice(42,0,round('Erin'),'Erin'), source=None)
+            # 5: conj(children=(3, 4), name=round('Erin'))
+            # Queries :
+            # * round('Erin') : 5 [query]
+            # When written as a string field (`proof` field of a TheoryAssertionInstance
+            # into the output json with the below formatting, it will look like this:
+            # "proof": "1: atom(identifier=15, probability=1.0, group=None, name=green('Harry'), source=None) |
+            #  2: atom(identifier=(24, ('Harry',) {{}}, 0), probability=1.0, group=(24, ('Harry',) {{}}),
+            #     name=choice(24,0,young('Harry'),'Harry'), source=None) |
+            #  3: conj(children=(1, 2), name=young('Harry')) |
+            #  Queries : * young('Harry') : 3 [query]""
+            proof = (
+                str(sdd)
+                .replace("\n*", "")
+                .replace("\n", " | ")
+                .rstrip(" | ")
+                .lstrip(" | ")
+            )
+    return label, proof_depth, proof
 
 
 def generate_random_example(
@@ -289,7 +375,7 @@ def generate_random_example(
 
     if assertion is not None:
         # Plug the generated statements into theorem prover
-        label = get_truth_label(
+        label, proof_depth, proof = get_truth_label_proof_and_proof_depth(
             theory, assertion, theorem_prover_config, theorem_prover
         )
 
@@ -299,7 +385,14 @@ def generate_random_example(
             if len(example_id_prefix) > 0:
                 example_id = f"{example_id_prefix}-{example_id}"
             example = Example(
-                example_id, TheoryAssertionInstance(theory, assertion, label)
+                example_id,
+                TheoryAssertionInstance(
+                    theory=theory,
+                    assertion=assertion,
+                    label=label,
+                    min_proof_depth=proof_depth,
+                    proof=proof,
+                ),
             )
 
     return example
@@ -322,6 +415,8 @@ def generate_theory(
     )
 
     num_examples = config["theory"]["num_examples"]
+    min_num_positive_examples = config["theory"]["min_num_positive_examples"]
+    max_num_negative_examples = num_examples - min_num_positive_examples
     statement_types = config["theory"]["statement_types_per_example"]
     assertion_start_symbol = config["assertion"]["start_symbol"]
     example_id_prefix = config.get("example_id_prefix", "")
@@ -332,7 +427,9 @@ def generate_theory(
     curr_num_examples = 0
     progress_tracker = tqdm(total=num_examples)
     progress_tracker.set_description(desc="Generating Examples...")
-    while curr_num_examples < num_examples:
+    while (
+        curr_num_examples < num_examples and num_true_labels < min_num_positive_examples
+    ):
         example = generate_random_example(
             curr_num_examples + 1,
             example_id_prefix,
@@ -346,7 +443,10 @@ def generate_theory(
             if example.theory_assertion_instance.label:
                 num_true_labels += 1
             else:
-                num_false_labels += 1
+                if num_false_labels == max_num_negative_examples:
+                    continue
+                else:
+                    num_false_labels += 1
             json.dump(example.to_json(), theory_op_file)
             theory_op_file.write("\n")
             curr_num_examples += 1

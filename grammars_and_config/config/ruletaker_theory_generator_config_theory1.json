@@ -1,6 +1,7 @@
 {
   "theory": {
     "num_examples": 1000,
+    "min_num_positive_examples": 500,
     "statement_types_per_example": [ {
         "start_symbol": "Fact",
         "num_statements_range": [1, 16] 
