@@ -63,7 +63,7 @@ The theory generator needs to meaningfully associate the grammar nonterminals wi
   "theory": {
     "num_examples": 200, # The total number of examples (theories) that we want in the dataset.
     
-    # Tells the heory generator to attempt to create at least the specified no. of positive examples. No. of -ve examples will be num_examples - min_num_positive examples.
+    # Tells the theory generator to attempt to create at least the specified no. of positive examples. No. of -ve examples will be num_examples - min_num_positive examples.
     "min_num_positive_examples": 100, 
     
     # Config for each type of top-level statement that will be in the theory.
@@ -529,7 +529,7 @@ This code has been tested and runs on Python 3.7.7 on the following platforms:
 
 # Contact
 
-If you need to directly contact someone for any reason where a GitHub pull request or an issue is not appropriate, you can email sumithrab@allenai.org.
+If you need to directly contact someone for any reason where a GitHub pull request or an issue is not appropriate, you can email oyvindt@allenai.org.
 
 
 # License
