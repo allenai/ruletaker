@@ -171,15 +171,19 @@ class Rule:
         json_class = json_dict.get("json_class")
         if json_class == "Rule":
             lhs_facts = [Fact.from_json(fact) for fact in json_dict["lhs"]]
-            return Rule(lhs_facts, Fact.from_json(json_dict["rhs"]), json_dict["probability"])
+            return Rule(
+                lhs_facts, Fact.from_json(json_dict["rhs"]), json_dict["probability"]
+            )
         return None
 
     def to_json(self):
         lhs_facts = [fact.to_json() for fact in self.lhs]
-        return {"json_class": "Rule", \
-            "lhs": lhs_facts, \
-            "rhs": self.rhs.to_json(), \
-            "probability": self.probability}
+        return {
+            "json_class": "Rule",
+            "lhs": lhs_facts,
+            "rhs": self.rhs.to_json(),
+            "probability": self.probability,
+        }
 
     def constants(self):
         facts = self.lhs + [self.rhs]
@@ -419,13 +423,27 @@ class TheoryAssertionInstance:
     The `exception` field is a placeholder to store any exceptions thrown by the theorem prover
     on existing theory datasets generated outside of ruletaker. Other theory datasets can be validated
     or evaluated by running them through theorem provers supported in this repo by using the
-    `theory_label_generator` tool."""
+    `theory_label_generator` tool.
+    `min_proof_depth` is an integer field containing the depth of the
+    proof; the depth of the simplest (shortest) proof if there are multiple.
+    `proof` is a string representation of the proof from the theorem prover.
+    The proof related fields are only present (not None) if the `label` is True."""
 
-    def __init__(self, theory, assertion, label=None, exception=None):
+    def __init__(
+        self,
+        theory,
+        assertion,
+        label=None,
+        exception=None,
+        min_proof_depth=None,
+        proof=None,
+    ):
         self.theory = theory
         self.assertion = assertion
         self.label = label
         self.exception = exception
+        self.min_proof_depth = min_proof_depth
+        self.proof = proof
 
     def __eq__(self, other):
         return (
@@ -434,10 +452,21 @@ class TheoryAssertionInstance:
             and self.assertion == other.assertion
             and self.label == other.label
             and self.exception == other.exception
+            and self.min_proof_depth == other.min_proof_depth
+            and self.proof == other.proof
         )
 
     def __hash__(self):
-        return hash((self.theory, self.assertion, self.label, self.exception))
+        return hash(
+            (
+                self.theory,
+                self.assertion,
+                self.label,
+                self.exception,
+                self.min_proof_depth,
+                self.proof,
+            )
+        )
 
     @classmethod
     def from_json(cls, json_dict):
@@ -448,6 +477,8 @@ class TheoryAssertionInstance:
                 Fact.from_json(json_dict["assertion"]),
                 json_dict["label"],
                 json_dict["exception"],
+                json_dict["min_proof_depth"],
+                json_dict["proof"],
             )
         return None
 
@@ -458,6 +489,8 @@ class TheoryAssertionInstance:
             "assertion": self.assertion.to_json(),
             "label": self.label,
             "exception": self.exception,
+            "min_proof_depth": self.min_proof_depth,
+            "proof": self.proof,
         }
 
 
@@ -475,7 +508,7 @@ class TheoryAssertionRepresentation:
         self.assertion_statement = assertion_statement
 
     def __hash__(self):
-        return hash((tuple(self.theory_statements), self.assertassertion_statemention))
+        return hash((tuple(self.theory_statements), self.assertion_statement))
 
     def __eq__(self, other):
         return (
