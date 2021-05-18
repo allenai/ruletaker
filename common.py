@@ -5,7 +5,7 @@ import random
 supported_theorem_provers = ["problog"]
 default_theorem_prover = "problog"
 
-variables = ["X"]
+variables = ["X", "Y"]
 
 # In the original RuleTaker dataset, variables were represented using the following NL.
 # These are used to check if an argument is a variable when we are loading/processing
@@ -58,7 +58,7 @@ class Fact:
                 json_dict["polarity"],
                 json_dict["predicate"],
                 arguments,
-                json_dict["probability"],
+                json_dict.get("probability", 1.0),
             )
         return None
 
@@ -475,10 +475,10 @@ class TheoryAssertionInstance:
             return TheoryAssertionInstance(
                 Theory.from_json(json_dict["theory"]),
                 Fact.from_json(json_dict["assertion"]),
-                json_dict["label"],
-                json_dict["exception"],
-                json_dict["min_proof_depth"],
-                json_dict["proof"],
+                json_dict.get("label"),
+                json_dict.get("exception"),
+                json_dict.get("min_proof_depth"),
+                json_dict.get("proof"),
             )
         return None
 
@@ -620,8 +620,8 @@ class Example:
                 TheoryAssertionInstance.from_json(
                     json_dict["theory_assertion_instance"]
                 ),
-                TheoryAssertionRepresentation.from_json(json_dict["logical_forms"]),
-                TheoryAssertionRepresentation.from_json(json_dict["english"]),
+                TheoryAssertionRepresentation.from_json(json_dict.get("logical_forms")),
+                TheoryAssertionRepresentation.from_json(json_dict.get("english")),
                 logic_program,
             )
         return None
@@ -681,7 +681,7 @@ class TheoryAssertionRepresentationWithLabel:
                 json_dict["id"],
                 json_dict["theory_statements"],
                 json_dict["assertion_statement"],
-                json_dict["label"],
+                json_dict.get("label"),
             )
         return None
 
