@@ -82,7 +82,7 @@ def parse_rule(statement_txt):
     try:
         lhs = parse_multiple_facts(lhs_txt)
     except ValueError:
-        raise ValuError(f"Unable to parse statement {statement_txt} as a rule.")
+        raise ValueError(f"Unable to parse statement {statement_txt} as a rule.")
     rhs = parse_fact(rhs_txt)
     return Rule(lhs, rhs)
 
