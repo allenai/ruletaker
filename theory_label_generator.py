@@ -206,7 +206,7 @@ def parse_legacy_rule_representation(rule_rep):
 
 
 def call_theorem_prover(
-    theorem_prover, instance_id, question_id, theory, assertion, gold_label
+    theorem_prover, instance_id, question_id, theory, assertion, gold_label, print_log=True
 ):
     """Function that takes a single theory/assertion example and runs it through the theorem prover
     to obtain a label. Returns the obtained label, elapsed time to solve it, and exception returned
@@ -214,19 +214,20 @@ def call_theorem_prover(
     """
     obtained_result = False
     millisecs_elapsed = 0
-    print("=======ORIGINAL THEORY=========")
+    if print_log: print("=======ORIGINAL THEORY=========")
     theory_as_txt = theory.program(theorem_prover)
-    print(theory_as_txt)
+    if print_log: print(theory_as_txt)
     theory.preprocess(theorem_prover)
     theory_as_txt = theory.program(theorem_prover)
     if theorem_prover == "problog":
         assertion_lf = assertion.logical_form(theorem_prover, False)
         assertion_lf = f"query({assertion_lf})."
         program = f"{theory_as_txt}\n{assertion_lf}"
-        print("=======PROGRAM FROM PREPROCESSED THEORY=========")
-        print(program)
-        print("=======EXPECTED LABEL=========")
-        print(f"    {gold_label}")
+        if print_log:
+            print("=======PROGRAM FROM PREPROCESSED THEORY=========")
+            print(program)
+            print("=======EXPECTED LABEL=========")
+            print(f"    {gold_label}")
         start_millisecs = current_milli_time()
         try:
             lf = LogicFormula.create_from(program)  # ground the program
@@ -241,9 +242,10 @@ def call_theorem_prover(
         except (NegativeCycle, NonGroundProbabilisticClause, UnknownClause) as e:
             end_millisecs = current_milli_time()
             elapsed_millisecs = end_millisecs - start_millisecs
-            print(
-                f"!!!Encountered Exception at instance id {instance_id}, question id {question_id}: {e}"
-            )
+            if print_log:
+                print(
+                    f"!!!Encountered Exception at instance id {instance_id}, question id {question_id}: {e}"
+                )
             exception_name = str(type(e)).lstrip("<class '").rstrip("'>")
             return None, elapsed_millisecs, exception_name
     return obtained_result, elapsed_millisecs, None
