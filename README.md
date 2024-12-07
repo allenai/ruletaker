@@ -10,7 +10,8 @@ For any features you might want, or issues, we welcome your pull requests! You c
 
 ## Dataset
 
-The latest dataset is available for download from the [allenai dataset page](https://allenai.org/data/ruletaker).
+The latest dataset is available for download from [here](https://aristo-data-public.s3-us-west-2.amazonaws.com/ruletaker/rule-reasoning-dataset-V2020.2.5.zip)
+<!--- the [allenai dataset page](https://allenai.org/data/ruletaker). --->
 
 ## About this release
 
